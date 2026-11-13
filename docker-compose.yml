@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: agrobot
+      POSTGRES_PASSWORD: agrobot
+      POSTGRES_DB: agrobot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb-test.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      # -h forces TCP, so the check fails during the image's init phase (socket-only server).
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "agrobot", "-d", "agrobot"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
