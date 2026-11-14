@@ -564,3 +564,23 @@ go up, down and up again. One detail the doc left open was settled.
     ones before writing, which has the same result as writing them afterwards.
 *   **The story check** (evaluation creates exactly the notifications the stories predict) needs
     the evaluation service, so it is added with step 5.
+
+### Step 4: alerts, fields and event types API
+
+**TL;DR:** the alert endpoints, the fields and event types listings, and the error answers work
+as the design's API table says. A few small choices on how.
+
+*   **Strict input types.** The threshold must be a JSON number, not the text `"70"`; the active
+    flag must be `true` or `false`. Loose conversion would accept input the API does not promise.
+*   **Unexpected errors are logged once.** The web framework's own catch-all answers 500 but
+    passes the error on, so the server logs it a second time. A small wrapper around the app logs
+    it once, at ERROR, and answers 500 with no internals.
+*   **A busy alert answers 503.** Changing or deleting an alert waits for its lock; when the
+    5-second lock timeout expires (a dispatcher is sending it), the database's "lock not
+    available" error becomes 503 with `Retry-After: 10`. A test holds the lock from another
+    connection and checks the answer arrives after about five seconds.
+*   **Membership removed mid-request.** The database rejects the insert through the composite
+    foreign key, and the API answers 404, as when the membership was missing from the start.
+*   **`Location`** is the path of the new alert (`/api/v1/alerts/{id}`).
+*   **Coverage measurement** is told about the database library's greenlets; without that it
+    reported lines that run as not covered.

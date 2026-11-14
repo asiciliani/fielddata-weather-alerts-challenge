@@ -10,9 +10,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import alerts, event_types, fields, health
 from app.config import Settings, get_settings
 from app.db import build_engine, build_session_factory
+from app.errors import register_error_handlers
 from app.logging import configure_logging
 
 
@@ -32,5 +33,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.session_factory = build_session_factory(engine)
 
+    register_error_handlers(app)
     app.include_router(health.router)
+    for module in (fields, event_types, alerts):
+        app.include_router(module.router, prefix="/api/v1")
     return app

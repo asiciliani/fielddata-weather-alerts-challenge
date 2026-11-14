@@ -56,3 +56,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 timeout = 60
+
+[tool.coverage.run]
+# SQLAlchemy's asyncio layer runs code inside greenlets; without this, lines after an await
+# inside the database bridge are reported as not covered.
+concurrency = ["greenlet", "thread"]
+source = ["app"]
