@@ -608,3 +608,27 @@ from step 2 was found and fixed on the way.
 *   **Story check** from step 3 added: after seeding, evaluation creates exactly the four
     notifications the stories predict, and the README walkthrough's alert adds exactly the two
     pinned dates.
+
+### Step 6: notifier and dispatch
+
+**TL;DR:** one dispatch batch claims alerts, expires past dates, re-checks the rest with the same
+rule as evaluation, sends one message per alert concurrently and records each result. Built as the
+design says; the choices below are details it left open.
+
+*   **The claim's SQL** is the design's, and a test checks it really ends in
+    `FOR NO KEY UPDATE OF alerts SKIP LOCKED` (the lock that does not block evaluation).
+*   **What a failure stores.** `last_error` is `kind: code` from the notifier port (for example
+    `unavailable: 503`); a timeout is `timeout: send_timeout`, and any other exception only its
+    type name, because its text could contain a phone number. A test raises an error whose text
+    holds a phone number and checks it is not stored.
+*   **Who gets the new attempt count.** The rows that were in the failed message get the count
+    plus one; the new retry time goes to every pending row of the alert, including one evaluation
+    added during the send, which keeps `attempts = 0` because it was never tried.
+*   **Re-check window.** The re-check uses today to today + horizon, like evaluation, so a pending
+    date outside it (only possible if the horizon setting is lowered) is dropped like any date that
+    no longer qualifies.
+*   **Settings in one object.** The batch's settings (batch size, timeout, horizon, minimum area,
+    backoff) travel together in a small `DispatchSettings` value instead of seven arguments.
+*   **Concurrency tests** hold a batch open inside a stalled notifier and check that evaluation
+    still finishes, that a second dispatcher takes other alerts, and that no notification is sent
+    twice.
