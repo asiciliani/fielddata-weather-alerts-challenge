@@ -682,3 +682,33 @@ with code 0. `make check` passed (208 tests, 97.7% coverage).
     while a send is blocked finishes and saves that batch and takes no new one).
 *   **CI** runs the same gates as `make check` against a PostgreSQL service: lint, format, types,
     migrations up/down/up and the tests with the 90% coverage gate.
+
+### Change in how the work is run (14 November)
+
+**TL;DR:** at the author's request, the code now lives in a private GitHub repository, every step
+is pushed as soon as it is committed, and the builder works on its own.
+
+*   **A private repository** was created on GitHub and the history pushed. The author wanted the
+    work kept there rather than only on his laptop. Making it public stays his call at delivery.
+*   **Push after every step.** This replaces the earlier rule of pushing only at delivery. Routine
+    pushes are done by a smaller, cheaper helper agent, as the author asked.
+*   **The builder owns the implementation.** It decides implementation details itself and records
+    them here, without waiting between steps. It still stops for the author when a review or the
+    drift report finds something that needs his decision.
+*   **One hiccup.** The first push that added the CI workflow was refused: the GitHub token could
+    not change workflow files. The author granted that permission and the push went through.
+
+### Step 10: README
+
+**TL;DR:** `README.md`, in Spanish, explains how to run the system, walks through one alert from
+creation to delivered message, and summarises the design: architecture, data model, alert rule
+with a worked example, concurrency model, decisions with their alternatives, assumptions, what is
+built for production, what is missing, and how it was built. Every command in it was run once
+against the stack started from an empty database.
+
+*   **It summarises and links instead of repeating.** The design doc stays the full spec; the
+    README gives each decision one line with its alternative and links to the doc's reasoning.
+*   **The identity shortcut is stated plainly**, with the warning that the API must never face a
+    network.
+*   **"How it was built"** says what was done with the AI agent and links this log, as the author
+    chose during planning.
