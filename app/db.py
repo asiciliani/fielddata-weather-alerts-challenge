@@ -1,5 +1,8 @@
-"""Database engine and session factory builders."""
+"""Database engine and session factory builders, and the database clock."""
 
+from datetime import datetime
+
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -43,3 +46,8 @@ def build_engine(settings: Settings, *, worker: bool = False) -> AsyncEngine:
 def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     """Sessions whose objects stay readable after commit (no implicit reload on access)."""
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def database_now(session: AsyncSession) -> datetime:
+    """The database's clock, read once per run so replicas with different clocks agree."""
+    return (await session.execute(sa.select(sa.func.now()))).scalar_one()

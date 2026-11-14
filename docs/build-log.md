@@ -584,3 +584,27 @@ as the design's API table says. A few small choices on how.
 *   **`Location`** is the path of the new alert (`/api/v1/alerts/{id}`).
 *   **Coverage measurement** is told about the database library's greenlets; without that it
     reported lines that run as not covered.
+
+### Step 5: evaluation service
+
+**TL;DR:** the evaluation statement is built exactly as the design's SQL, and the matching rule
+lives in one function that the dispatcher's re-check and the demo outlook will reuse. One bug
+from step 2 was found and fixed on the way.
+
+*   **One matching rule, three users.** `firing_matches` builds the join of alerts, field zones
+    and forecasts, the threshold, the window, the area sum and the "highest probability" pick.
+    Evaluation adds its "not notified yet" filter and the insert; the re-check and the outlook
+    will add their own filters. So the three can never disagree about when an alert fires.
+*   **Data checks** (`alerts_without_zones`, `forecasts_stale`) are written here and called by the
+    worker's evaluation job in step 8. Missing forecasts are checked per zone and event type an
+    active alert watches, so a zone missing only its rain forecasts is noticed too.
+*   **The database clock.** A small helper reads `now()` from the database; jobs derive "today"
+    from it in the forecast timezone, as the design says.
+*   **Bug found: doubled constraint names.** The migrations created check constraints as
+    `ck_zones_ck_zones_latitude_range`: Alembic applies the models' naming convention to names
+    that were already complete. The constraints worked (the tests that break them passed), so
+    only the names were wrong. Fixed by marking the names as final, and a new test compares every
+    constraint and index name in the database with what the models expect. Its own commit.
+*   **Story check** from step 3 added: after seeding, evaluation creates exactly the four
+    notifications the stories predict, and the README walkthrough's alert adds exactly the two
+    pinned dates.
