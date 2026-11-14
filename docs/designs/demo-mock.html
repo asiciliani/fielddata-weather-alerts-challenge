@@ -1,0 +1,509 @@
+<title>Agrobot Alerts Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a survey-sheet map of the forecast grid (fields drawn over zones, scrubbed by date) beside a phone showing the chat; per-field forecast tables below. One line-icon set marks the four event types. */
+:root {
+  --bg: #eef1ea;
+  --surface: #fbfcf8;
+  --fg: #1c241e;
+  --muted: #5b685e;
+  --line: #d3dacf;
+  --accent: #2f6b4f;
+  --fire: #d27a12;
+  --fire-soft: #fbe9cf;
+  --land: #e4e8d6;
+  --land-2: #d9dfc8;
+  --water: #b9d3dc;
+  --road: #c8c2ae;
+  --grid: #8f9a86;
+  --p0: #eef2f6; --p1: #d3e3f0; --p2: #a3c6e2; --p3: #6a9fcc; --p4: #3672ab; --p5: #1b4574;
+  --on-dark: #ffffff;
+  --chat-bg: #efe7dc;
+  --chat-dots: #e2d8c9;
+  --bubble-in: #ffffff;
+  --chat-head: #1f5c4a;
+  --tick: #4fa3d8;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --surface: #181f1a; --fg: #e3eae4; --muted: #9aa79d; --line: #2b352e;
+    --accent: #7cc39c; --fire: #f2a34a; --fire-soft: #3b2b17;
+    --land: #1e2620; --land-2: #232c25; --water: #1f3a46; --road: #3a3a30; --grid: #5d6a5f;
+    --p0: #1c242b; --p1: #20374b; --p2: #2a5476; --p3: #3b77a8; --p4: #6aa2d2; --p5: #b8d6ef;
+    --on-dark: #0d1410; --chat-bg: #0f1a16; --chat-dots: #17251f; --bubble-in: #1f2c27; --chat-head: #1c3a31; --tick: #5db4e8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #181f1a; --fg: #e3eae4; --muted: #9aa79d; --line: #2b352e;
+  --accent: #7cc39c; --fire: #f2a34a; --fire-soft: #3b2b17;
+  --land: #1e2620; --land-2: #232c25; --water: #1f3a46; --road: #3a3a30; --grid: #5d6a5f;
+  --p0: #1c242b; --p1: #20374b; --p2: #2a5476; --p3: #3b77a8; --p4: #6aa2d2; --p5: #b8d6ef;
+  --on-dark: #0d1410; --chat-bg: #0f1a16; --chat-dots: #17251f; --bubble-in: #1f2c27; --chat-head: #1c3a31; --tick: #5db4e8;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; margin-bottom: 20px; }
+.eyebrow { font-family: var(--font-data); font-size: 0.75rem; letter-spacing: 0.06em; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; margin: 2px 0 0; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 64ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; border: 0; background: transparent; color: var(--fg); padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-dark); }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.minarea { display: flex; align-items: center; gap: 8px; }
+.minarea input { accent-color: var(--accent); }
+.minarea output { font-family: var(--font-data); min-width: 3.5ch; }
+
+.ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; flex: none; }
+.ico * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+@media (max-width: 980px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.mapcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.maphead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.maphead h2 { font-family: var(--font-display); font-size: 1.1rem; margin: 0; }
+.evt { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.evt button { font: inherit; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); padding: 4px 11px 4px 9px; border-radius: 999px; cursor: pointer; }
+.evt button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-dark); }
+.mapwrap { overflow-x: auto; }
+svg.map { display: block; width: 100%; min-width: 520px; height: auto; font-family: var(--font-data); }
+.zone-label { font-size: 11px; }
+.zone-prob { font-size: 15px; font-weight: 500; }
+.field-shape { stroke-width: 2.2; cursor: pointer; transition: fill .25s ease, stroke .25s ease; }
+.field-name { font-family: var(--font-body); font-size: 13px; font-weight: 700; fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.field-badge { font-family: var(--font-body); font-size: 11px; font-weight: 700; }
+.scrub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+.scrub button.date { font-family: var(--font-data); font-size: 0.8rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; cursor: pointer; position: relative; }
+.scrub button.date[aria-pressed="true"] { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.scrub button.date .dot { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--fire); border: 2px solid var(--surface); }
+.scrub button.play { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 0.78rem; color: var(--muted); margin-top: 10px; }
+.ramp { display: inline-flex; border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.ramp span { width: 20px; height: 11px; }
+.swatch { display: inline-block; width: 14px; height: 10px; border: 2px solid var(--fire); background: var(--fire-soft); border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+
+/* Phone */
+.phone { width: 100%; max-width: 360px; margin: 0 auto; border-radius: 34px; padding: 10px; background: #15181a; box-shadow: 0 18px 40px rgba(0,0,0,.18); }
+.screen { border-radius: 26px; overflow: hidden; background: var(--chat-bg); display: flex; flex-direction: column; height: 620px; }
+.chathead { background: var(--chat-head); color: #fff; display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: #e8f1ea; color: #1f5c4a; display: grid; place-items: center; font-weight: 800; font-family: var(--font-display); }
+.chathead .name { font-weight: 700; line-height: 1.1; }
+.chathead .state { font-size: 0.75rem; opacity: .8; }
+.chatbody { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 8px;
+  background-image: radial-gradient(var(--chat-dots) 1.2px, transparent 1.2px); background-size: 18px 18px; }
+.daychip { align-self: center; background: var(--bubble-in); color: var(--muted); font-size: 0.72rem; padding: 3px 10px; border-radius: 8px; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+.bubble { align-self: flex-start; max-width: 86%; background: var(--bubble-in); color: var(--fg); border-radius: 0 10px 10px 10px; padding: 7px 10px 5px; box-shadow: 0 1px 0 rgba(0,0,0,.08); font-size: 0.92rem; position: relative; animation: pop .25s ease both; }
+.bubble::before { content: ""; position: absolute; left: -7px; top: 0; border-right: 8px solid var(--bubble-in); border-bottom: 9px solid transparent; }
+.bubble .kind { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+.bubble .time { display: block; text-align: right; font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+.bubble .ticks { color: var(--tick); margin-left: 3px; letter-spacing: -2px; }
+.sysnote { align-self: center; max-width: 92%; text-align: center; font-size: 0.75rem; color: var(--fg); background: var(--fire-soft); border-radius: 8px; padding: 5px 10px; animation: pop .25s ease both; }
+.typing { align-self: flex-start; background: var(--bubble-in); border-radius: 0 10px 10px 10px; padding: 9px 12px; display: inline-flex; gap: 4px; }
+.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite; }
+.typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25 } 40% { opacity: 1 } }
+@keyframes pop { from { transform: translateY(6px); opacity: 0 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .bubble, .sysnote { animation: none; } .typing span { animation: none; opacity: .6; } .field-shape { transition: none; } }
+.chatactions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.chatactions button { font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 10px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.chatactions button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-dark); }
+.chatactions button:disabled { opacity: .5; cursor: default; }
+.chatnote { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+
+.details { margin-top: 28px; }
+.details h2 { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 12px; }
+.plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; }
+.plot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; scroll-margin-top: 16px; }
+.plot.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.plot-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.plot h3 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; }
+.story { color: var(--muted); font-size: 0.88rem; margin: 2px 0 10px; }
+.role { font-size: 0.75rem; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--muted); }
+.chip { display: inline-flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; margin: 2px 8px 8px 0; }
+.chip input { width: 110px; accent-color: var(--accent); }
+.chip output { font-family: var(--font-data); min-width: 3.5ch; }
+.who { font-size: 0.78rem; color: var(--muted); }
+.gridwrap { overflow-x: auto; }
+table.grid { border-collapse: separate; border-spacing: 3px; font-family: var(--font-data); font-size: 0.78rem; min-width: 480px; width: 100%; }
+.grid th { font-weight: 500; color: var(--muted); text-align: center; padding: 2px 3px; }
+.grid th.rowh { text-align: left; white-space: nowrap; font-family: var(--font-body); }
+.grid td { text-align: center; padding: 5px 2px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.grid td.hit { box-shadow: inset 0 0 0 2px var(--fire); }
+.grid td.cur { outline: 2px solid var(--fg); outline-offset: -1px; }
+.grid tr.area td { color: var(--muted); }
+.grid tr.area td.fires { color: var(--fire); font-weight: 700; }
+.mark { font-family: var(--font-body); font-size: 0.7rem; padding: 1px 6px; border-radius: 999px; }
+.mark.yes { background: var(--fire-soft); color: var(--fire); font-weight: 700; }
+.mark.no { color: var(--muted); }
+.mark.sliver { color: var(--muted); text-decoration: underline dotted; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">AGROBOT · ALERTAS CLIMÁTICAS · DATOS DE EJEMPLO</div>
+      <h1>Qué campos reciben alerta, y cuándo</h1>
+      <p class="sub">Hoy es <strong>13/11</strong>; se miran hoy y los 7 días siguientes. Cada cuadro del mapa es una zona de la grilla del pronóstico (0,25°). Una alerta se dispara en una fecha cuando las zonas que llegan al umbral cubren al menos el área mínima del campo.</p>
+    </div>
+    <div class="controls">
+      <div>
+        <div class="label" id="user-label">Usuario</div>
+        <div class="seg" role="group" aria-labelledby="user-label" id="user-seg"></div>
+      </div>
+      <div>
+        <div class="label"><label for="minarea">Área mínima afectada</label></div>
+        <div class="minarea"><input type="range" id="minarea" min="1" max="50" value="10"><output id="minarea-out">10%</output></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <section class="mapcard" aria-label="Mapa de zonas y campos">
+      <div class="maphead">
+        <h2 id="map-title">Pronóstico por zona</h2>
+        <div class="evt" role="group" aria-label="Evento" id="evt-seg"></div>
+      </div>
+      <div class="mapwrap"><svg class="map" id="map" viewBox="-70 -40 900 690" role="img" aria-labelledby="map-title"></svg></div>
+      <div class="scrub" id="scrub" aria-label="Fecha"></div>
+      <div class="legend">
+        <span>Probabilidad</span>
+        <span class="ramp" aria-hidden="true"><span style="background:var(--p0)"></span><span style="background:var(--p1)"></span><span style="background:var(--p2)"></span><span style="background:var(--p3)"></span><span style="background:var(--p4)"></span><span style="background:var(--p5)"></span></span>
+        <span>0 → 100%; el ícono se intensifica con la probabilidad</span>
+        <span><span class="swatch"></span>campo con alerta disparada en la fecha elegida</span>
+      </div>
+    </section>
+
+    <section aria-label="Chat simulado">
+      <div class="phone">
+        <div class="screen">
+          <div class="chathead">
+            <div class="avatar" aria-hidden="true">A</div>
+            <div><div class="name">Agrobot</div><div class="state" id="chat-state">en línea</div></div>
+          </div>
+          <div class="chatbody" id="chat" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="chatactions">
+        <button type="button" class="primary" id="btn-send">Recibir alertas</button>
+        <button type="button" id="btn-fail">Simular canal caído</button>
+      </div>
+      <p class="chatnote">Chat simulado: en este proyecto el mensaje se escribe en el log en lugar de enviarse por WhatsApp. Un mensaje por alerta, con todas sus fechas.</p>
+    </section>
+  </div>
+
+  <section class="details" aria-label="Detalle por campo">
+    <h2>Detalle por campo</h2>
+    <div class="plots" id="plots"></div>
+  </section>
+</div>
+
+<script>
+const DATES = ["13/11","14/11","15/11","16/11","17/11","18/11","19/11","20/11"];
+const EVENT = { frost: "helada", rain: "lluvia", heat: "calor extremo", strong_wind: "viento fuerte" };
+// One line-icon per event type, drawn on a 24-unit grid.
+const GLYPH = {
+  frost: [["path", "M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10M9 3.5l3 2 3-2M9 20.5l3-2 3 2M4 10.5l2.7-.9-.2-3M20 13.5l-2.7.9.2 3M4 13.5l2.7.9-.2 3M20 10.5l-2.7-.9.2-3"]],
+  rain: [["path", "M7 14.5a4 4 0 0 1 .4-8 5.5 5.5 0 0 1 10.4 1.8 3.4 3.4 0 0 1-.3 6.2Z"], ["path", "M8.5 17.5l-1 3M12.5 17.5l-1 3M16.5 17.5l-1 3"]],
+  heat: [["circle", 12, 12, 4.2], ["path", "M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"]],
+  strong_wind: [["path", "M3 8.5h10.5a3 3 0 1 0-3-3M3 12.5h15a3 3 0 1 1-3 3M3 16.5h7"]],
+};
+const USERS = [{ id: 1, name: "Marta Gómez" }, { id: 2, name: "Julián Pereyra" }];
+// Zone grid: 4 columns × 3 rows of 0.25° zones, 200 px each.
+const LATS = ["−34,125", "−34,375", "−34,625"];
+const LONS = ["−60,375", "−60,125", "−59,875", "−59,625"];
+const ZONES = { Z1: [0,0], Z2: [1,1], Z3: [2,1], Z4: [1,2], Z5: [2,2], Z6: [3,0] };
+const FIELDS = [
+  { key: "esperanza", name: "La Esperanza", story: "Una zona. Dos fechas frías salen en un único mensaje.",
+    members: { 1: "dueña" }, zones: [{ id: "Z1", cov: 1.0 }],
+    shape: [[52,58],[150,46],[168,118],[120,152],[62,140]],
+    alerts: [{ user: 1, type: "frost", threshold: 70, note: "la crea el recorrido del README" }] },
+  { key: "alamos", name: "Los Álamos", story: "Campo grande: 60% en Z2 y 40% en Z3. El 17/11 solo hace frío en Z3.",
+    members: { 1: "dueña" }, zones: [{ id: "Z2", cov: 0.6 }, { id: "Z3", cov: 0.4 }],
+    shape: [[248,238],[505,230],[512,362],[396,378],[252,356]],
+    alerts: [{ user: 1, type: "frost", threshold: 70 }] },
+  { key: "rincon", name: "El Rincón", story: "Una franja del 5% en Z5. Llueve solo ahí el 14/11: no alcanza.",
+    members: { 2: "dueño" }, zones: [{ id: "Z4", cov: 0.95 }, { id: "Z5", cov: 0.05 }],
+    shape: [[222,436],[409,428],[411,548],[300,566],[226,540]],
+    alerts: [{ user: 2, type: "rain", threshold: 60 }] },
+  { key: "compartida", name: "La Compartida", story: "Mismo campo, dos miembros, mismo pronóstico (70%). Cada uno con su umbral.",
+    members: { 1: "dueña", 2: "agrónomo" }, zones: [{ id: "Z6", cov: 1.0 }],
+    shape: [[628,44],[748,60],[756,150],[660,166],[622,112]],
+    alerts: [{ user: 1, type: "heat", threshold: 60 }, { user: 2, type: "heat", threshold: 80 }] },
+];
+// Forecasts per event type, zone and date (what the ingestion job would have written).
+const FC = {
+  frost: { Z1: [10,22,85,72,30,15,8,12], Z2: [12,18,25,30,40,75,20,10], Z3: [15,20,28,35,80,90,22,14], Z4: [5,8,12,10,6,9,7,5], Z5: [6,9,10,12,8,10,6,4], Z6: [3,4,2,3,5,4,3,2] },
+  rain:  { Z1: [12,30,18,22,40,35,20,15], Z2: [20,25,30,28,22,18,30,25], Z3: [18,22,26,30,24,20,28,22], Z4: [20,20,35,70,40,25,10,30], Z5: [30,90,40,70,45,20,15,25], Z6: [10,12,15,18,20,14,12,10] },
+  heat:  { Z1: [5,6,4,3,5,8,10,12], Z2: [8,10,12,9,7,6,8,10], Z3: [9,11,10,8,6,7,9,11], Z4: [15,18,20,22,25,20,18,16], Z5: [16,19,21,23,24,21,17,15], Z6: [20,30,70,45,40,35,30,25] },
+  strong_wind: { Z1: [20,35,45,30,25,55,62,40], Z2: [25,40,52,35,30,60,68,45], Z3: [22,38,50,33,28,58,66,42], Z4: [18,30,40,28,22,48,55,36], Z5: [19,31,41,29,23,49,57,37], Z6: [30,45,58,40,35,65,72,50] },
+};
+
+let currentUser = 1, minArea = 0.10, dateIdx = 2, evtType = "frost", focusKey = null, playing = null;
+let channelDown = false;
+
+const shadeIdx = p => p < 15 ? 0 : p < 30 ? 1 : p < 50 ? 2 : p < 70 ? 3 : p < 85 ? 4 : 5;
+
+// Same rule as the evaluation job.
+function evaluate(field, alert) {
+  return DATES.map((d, i) => {
+    const hits = field.zones.filter(z => FC[alert.type][z.id][i] >= alert.threshold);
+    const area = Math.min(hits.reduce((s, z) => s + z.cov, 0), 1);
+    const prob = hits.length ? Math.max(...hits.map(z => FC[alert.type][z.id][i])) : null;
+    return { date: d, hits: hits.map(z => z.id), area, prob, fires: hits.length > 0 && area >= minArea - 1e-9 };
+  });
+}
+function message(field, alert, res) {
+  const fired = res.filter(r => r.fires);
+  if (!fired.length) return null;
+  return `⚠️ Alerta de ${EVENT[alert.type]} en "${field.name}" (umbral ${alert.threshold}%): ` +
+    fired.map(r => { const pct = Math.round(r.area * 100); return `${r.date} ${r.prob}%` + (pct < 100 ? ` (${pct}% del campo)` : ""); }).join(", ") + ".";
+}
+const visibleFields = () => FIELDS.filter(f => f.members[currentUser]);
+const myAlerts = f => f.alerts.filter(a => a.user === currentUser);
+
+const NS = "http://www.w3.org/2000/svg";
+function s(tag, attrs = {}, text) { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; }
+function h(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v); }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+function glyphParts(type) {
+  return GLYPH[type].map(([tag, ...a]) => tag === "circle" ? s("circle", { cx: a[0], cy: a[1], r: a[2] }) : s("path", { d: a[0] }));
+}
+// Inline icon for HTML (inherits the text colour).
+function icon(type, label) {
+  const svg = s("svg", { viewBox: "0 0 24 24", class: "ico", "aria-hidden": label ? "false" : "true" });
+  if (label) { svg.setAttribute("role", "img"); svg.setAttribute("aria-label", label); }
+  svg.append(...glyphParts(type));
+  return svg;
+}
+// Icon placed on the map at (x, y) with a size and colour.
+function mapGlyph(type, x, y, size, color, opacity = 1) {
+  const g = s("g", { transform: `translate(${x} ${y}) scale(${size / 24})`, fill: "none", stroke: color, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", opacity });
+  g.append(...glyphParts(type));
+  return g;
+}
+
+function renderMap() {
+  const svg = document.getElementById("map");
+  svg.replaceChildren();
+  const css = getComputedStyle(document.documentElement);
+  const col = n => css.getPropertyValue(n).trim();
+  svg.append(s("rect", { x: 0, y: 0, width: 800, height: 600, fill: col("--land"), rx: 6 }));
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) if ((r + c) % 2) svg.append(s("rect", { x: c*200, y: r*200, width: 200, height: 200, fill: col("--land-2") }));
+  svg.append(s("path", { d: "M -10 470 C 120 430, 170 520, 300 600 S 520 470, 600 420 S 760 360, 810 300", fill: "none", stroke: col("--water"), "stroke-width": 9, "stroke-linecap": "round" }));
+  svg.append(s("path", { d: "M 0 190 L 800 214 M 560 0 L 590 600", fill: "none", stroke: col("--road"), "stroke-width": 3, "stroke-dasharray": "10 6" }));
+  // Zones: colour by probability; the event icon fades in with probability.
+  for (const [id, [c, r]] of Object.entries(ZONES)) {
+    const p = FC[evtType][id][dateIdx];
+    const i = shadeIdx(p);
+    const ink = i >= 4 ? col("--on-dark") : col("--fg");
+    svg.append(s("rect", { x: c*200 + 3, y: r*200 + 3, width: 194, height: 194, rx: 4, fill: col(`--p${i}`), "fill-opacity": 0.88 }));
+    svg.append(s("text", { x: c*200 + 12, y: r*200 + 22, class: "zone-label", fill: i >= 4 ? col("--on-dark") : col("--muted") }, id));
+    svg.append(mapGlyph(evtType, c*200 + 170, r*200 + 9, 20, ink, 0.25 + 0.75 * p / 100));
+    svg.append(s("text", { x: c*200 + 188, y: r*200 + 186, "text-anchor": "end", class: "zone-prob", fill: ink }, `${p}%`));
+  }
+  for (let c = 0; c <= 4; c++) svg.append(s("line", { x1: c*200, y1: 0, x2: c*200, y2: 600, stroke: col("--grid"), "stroke-width": 1, "stroke-dasharray": "2 4" }));
+  for (let r = 0; r <= 3; r++) svg.append(s("line", { x1: 0, y1: r*200, x2: 800, y2: r*200, stroke: col("--grid"), "stroke-width": 1, "stroke-dasharray": "2 4" }));
+  LONS.forEach((l, c) => svg.append(s("text", { x: c*200 + 100, y: -14, "text-anchor": "middle", class: "zone-label", fill: col("--muted") }, `${l}°`)));
+  LATS.forEach((l, r) => svg.append(s("text", { x: -12, y: r*200 + 104, "text-anchor": "end", class: "zone-label", fill: col("--muted") }, `${l}°`)));
+  for (const f of FIELDS) {
+    const visible = !!f.members[currentUser];
+    const alerts = myAlerts(f);
+    const fired = alerts.find(a => evaluate(f, a)[dateIdx].fires);
+    const pts = f.shape.map(p => p.join(",")).join(" ");
+    const poly = s("polygon", { points: pts, class: "field-shape",
+      fill: fired ? col("--fire-soft") : visible ? col("--surface") : "transparent",
+      "fill-opacity": visible ? 0.82 : 0, stroke: fired ? col("--fire") : visible ? col("--fg") : col("--grid"),
+      "stroke-dasharray": visible ? "" : "4 4", tabindex: visible ? "0" : "-1" });
+    if (visible) {
+      poly.setAttribute("role", "button");
+      poly.setAttribute("aria-label", `${f.name}: ver detalle`);
+      const go = () => focusField(f.key);
+      poly.addEventListener("click", go);
+      poly.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    svg.append(poly);
+    const cx = f.shape.reduce((a, p) => a + p[0], 0) / f.shape.length, cy = f.shape.reduce((a, p) => a + p[1], 0) / f.shape.length;
+    if (visible) {
+      svg.append(s("text", { x: cx, y: cy, "text-anchor": "middle", class: "field-name" }, f.name));
+      if (fired) {
+        svg.append(mapGlyph(fired.type, cx - 36, cy + 7, 14, col("--fire")));
+        svg.append(s("text", { x: cx - 18, y: cy + 18, class: "field-badge", fill: col("--fire") }, EVENT[fired.type]));
+      }
+    }
+  }
+}
+
+function renderEvt() {
+  document.getElementById("evt-seg").replaceChildren(...Object.entries(EVENT).map(([k, label]) => {
+    const b = h("button", { type: "button", "aria-pressed": String(k === evtType) }, icon(k), label);
+    b.addEventListener("click", () => { evtType = k; render(); });
+    return b;
+  }));
+}
+
+function renderScrub() {
+  const scrub = document.getElementById("scrub");
+  const firedDates = new Set();
+  for (const f of visibleFields()) for (const a of myAlerts(f)) evaluate(f, a).forEach((r, i) => r.fires && firedDates.add(i));
+  const btns = DATES.map((d, i) => {
+    const b = h("button", { type: "button", class: "date", "aria-pressed": String(i === dateIdx), "aria-label": `${d}${firedDates.has(i) ? ", con alertas" : ""}` }, d, firedDates.has(i) ? h("span", { class: "dot", "aria-hidden": "true" }) : null);
+    b.addEventListener("click", () => { stop(); dateIdx = i; render(); });
+    return b;
+  });
+  const play = h("button", { type: "button", class: "play", text: playing ? "Pausar" : "▶ Recorrer la semana" });
+  play.addEventListener("click", () => playing ? stop() : start());
+  scrub.replaceChildren(...btns, play);
+}
+function start() { playing = setInterval(() => { dateIdx = (dateIdx + 1) % DATES.length; render(); }, 900); render(); }
+function stop() { if (playing) { clearInterval(playing); playing = null; renderScrub(); } }
+
+function renderUsers() {
+  document.getElementById("user-seg").replaceChildren(...USERS.map(u => {
+    const b = h("button", { type: "button", "aria-pressed": String(u.id === currentUser), text: u.name });
+    b.addEventListener("click", () => { currentUser = u.id; focusKey = null; resetChat(); render(); preload(); });
+    return b;
+  }));
+}
+
+function renderPlots() {
+  document.getElementById("plots").replaceChildren(...visibleFields().map(f => {
+    const mine = myAlerts(f);
+    const type = (mine[0] || f.alerts[0]).type;
+    const res = mine.length ? evaluate(f, mine[0]) : null;
+    const card = h("article", { class: "plot" + (focusKey === f.key ? " focus" : ""), id: `plot-${f.key}` });
+    card.append(h("div", { class: "plot-head" }, h("h3", { text: f.name }), h("span", { class: "role", text: f.members[currentUser] })));
+    card.append(h("p", { class: "story", text: f.story }));
+    for (const a of mine) {
+      const id = `thr-${f.key}-${a.user}`;
+      const range = h("input", { type: "range", id, min: "1", max: "100", value: String(a.threshold), "aria-label": `Umbral de ${EVENT[a.type]} en ${f.name}` });
+      range.addEventListener("input", () => { a.threshold = Number(range.value); render(); document.getElementById(id)?.focus(); });
+      card.append(h("span", { class: "chip" }, icon(a.type), h("strong", { text: `Alerta de ${EVENT[a.type]} ≥` }), range, h("output", { for: id, text: `${a.threshold}%` }), a.note ? h("span", { class: "who", text: a.note }) : null));
+    }
+    const others = f.alerts.filter(a => a.user !== currentUser);
+    if (others.length) card.append(h("p", { class: "who", text: `Otro miembro tiene su propia alerta (≥ ${others[0].threshold}%); no la ves ni la recibís.` }));
+    const t = h("table", { class: "grid" });
+    t.append(h("thead", {}, h("tr", {}, h("th", { class: "rowh" }, icon(type), " ", EVENT[type]), ...DATES.map(d => h("th", { scope: "col", text: d })))));
+    const tb = h("tbody");
+    for (const z of f.zones) {
+      const tr = h("tr", {}, h("th", { class: "rowh", scope: "row", text: `${z.id} (${Math.round(z.cov*100)}%)` }));
+      FC[type][z.id].forEach((p, i) => {
+        const td = h("td", { text: String(p) });
+        const k = shadeIdx(p);
+        td.style.background = `var(--p${k})`; td.style.color = k >= 4 ? "var(--on-dark)" : "var(--fg)";
+        const cls = []; if (res && res[i].hits.includes(z.id)) cls.push("hit"); if (i === dateIdx) cls.push("cur");
+        td.className = cls.join(" ");
+        tr.append(td);
+      });
+      tb.append(tr);
+    }
+    if (res) {
+      tb.append(h("tr", { class: "area" }, h("th", { class: "rowh", scope: "row", text: "Área afectada" }),
+        ...res.map(r => h("td", { class: r.fires ? "fires" : "", text: r.hits.length ? `${Math.round(r.area*100)}%` : "–" }))));
+      tb.append(h("tr", {}, h("th", { class: "rowh", scope: "row", text: "¿Se dispara?" }),
+        ...res.map(r => { const sl = r.hits.length > 0 && !r.fires; return h("td", {}, h("span", { class: "mark " + (r.fires ? "yes" : sl ? "sliver" : "no"), title: sl ? "Hay zonas sobre el umbral, pero cubren menos que el área mínima" : "", text: r.fires ? "sí" : sl ? "poca área" : "no" })); })));
+    }
+    t.append(tb);
+    card.append(h("div", { class: "gridwrap" }, t));
+    return card;
+  }));
+}
+
+function focusField(key) {
+  focusKey = key;
+  const f = FIELDS.find(x => x.key === key);
+  const a = myAlerts(f)[0];
+  if (a) evtType = a.type;
+  render();
+  document.getElementById(`plot-${key}`)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+// Chat simulation.
+let timers = [];
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+function resetChat() {
+  clearTimers();
+  document.getElementById("chat").replaceChildren(h("div", { class: "daychip", text: "HOY" }));
+  document.getElementById("chat-state").textContent = "en línea";
+  document.getElementById("btn-send").disabled = false;
+}
+function pendingMessages() {
+  const out = [];
+  for (const f of visibleFields()) for (const a of myAlerts(f)) { const m = message(f, a, evaluate(f, a)); if (m) out.push({ text: m, type: a.type }); }
+  return out;
+}
+function addBubble(msg, time) {
+  const chat = document.getElementById("chat");
+  chat.append(h("div", { class: "bubble" },
+    h("div", { class: "kind" }, icon(msg.type), EVENT[msg.type]),
+    h("div", { text: msg.text }),
+    h("span", { class: "time" }, time, h("span", { class: "ticks", text: "✓✓", "aria-label": "leído" }))));
+  chat.scrollTop = chat.scrollHeight;
+}
+function addNote(text) {
+  const chat = document.getElementById("chat");
+  chat.append(h("div", { class: "sysnote", text }));
+  chat.scrollTop = chat.scrollHeight;
+}
+function typingThen(fn, ms = 900) {
+  const chat = document.getElementById("chat");
+  const t = h("div", { class: "typing", "aria-label": "escribiendo" }, h("span"), h("span"), h("span"));
+  chat.append(t); chat.scrollTop = chat.scrollHeight;
+  document.getElementById("chat-state").textContent = "escribiendo…";
+  timers.push(setTimeout(() => { t.remove(); document.getElementById("chat-state").textContent = "en línea"; fn(); }, ms));
+}
+function deliver() {
+  resetChat();
+  document.getElementById("btn-send").disabled = true;
+  const msgs = pendingMessages();
+  if (!msgs.length) { addNote("Sin alertas para enviar con estos umbrales y esta área mínima."); document.getElementById("btn-send").disabled = false; return; }
+  if (channelDown) {
+    addNote(`Envío fallido (${msgs.length} ${msgs.length === 1 ? "mensaje" : "mensajes"}). Reintento en hasta 1 min; las notificaciones siguen pendientes.`);
+    timers.push(setTimeout(() => addNote("Reintento fallido. Próximo intento en hasta 2 min. La detección sigue funcionando."), 1400));
+    timers.push(setTimeout(() => { addNote("Canal restablecido. Se envían las alertas pendientes, una por alerta:"); sendAll(msgs, 1); }, 2900));
+    channelDown = false; syncFailBtn();
+    return;
+  }
+  sendAll(msgs, 0);
+}
+function sendAll(msgs, minuteOffset) {
+  msgs.forEach((m, k) => timers.push(setTimeout(() => typingThen(() => {
+    addBubble(m, `09:${String(5 + minuteOffset * 3 + k).padStart(2, "0")}`);
+    if (k === msgs.length - 1) document.getElementById("btn-send").disabled = false;
+  }, 800), k * 1300)));
+}
+function syncFailBtn() {
+  const b = document.getElementById("btn-fail");
+  b.textContent = channelDown ? "Canal caído: activado" : "Simular canal caído";
+  b.setAttribute("aria-pressed", String(channelDown));
+}
+// Open in a realistic state: the alerts already delivered this morning.
+function preload() { pendingMessages().forEach((m, k) => addBubble(m, `09:${String(5 + k).padStart(2, "0")}`)); }
+
+function render() {
+  renderUsers(); renderEvt(); renderMap(); renderScrub(); renderPlots();
+  document.getElementById("minarea-out").textContent = `${Math.round(minArea * 100)}%`;
+}
+
+document.getElementById("minarea").addEventListener("input", e => { minArea = Number(e.target.value) / 100; render(); });
+document.getElementById("btn-send").addEventListener("click", deliver);
+document.getElementById("btn-fail").addEventListener("click", () => { channelDown = !channelDown; syncFailBtn(); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", renderMap);
+new MutationObserver(renderMap).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+resetChat(); syncFailBtn(); render(); preload();
+</script>
