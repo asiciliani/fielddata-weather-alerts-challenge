@@ -659,3 +659,26 @@ cleanly on SIGTERM, and has a single-cycle mode and a health check. Details the 
 *   **The end-to-end test** creates an alert through the API on a field with two zones, runs the
     single-cycle path and lists the notifications as sent, with one grouped message
     "(40% del campo)" for the partial date.
+
+### Step 9: Docker image, Compose stack, CI
+
+**TL;DR:** from an empty database, `docker compose up -d --build` runs the migrations and the
+seed, then starts the API and the worker, both reported healthy. The README walkthrough was run
+for real: a new frost alert on La Esperanza produced one message,
+`⚠️ Alerta de helada en "La Esperanza" (umbral 70%): 16/11 85%, 17/11 72%.`, and both
+notifications listed as `sent`. `docker compose stop worker` took under half a second and exited
+with code 0. `make check` passed (208 tests, 97.7% coverage).
+
+*   **One image, two commands.** The image installs only the runtime dependencies, runs as a
+    non-root user, and starts the virtualenv's programs directly so stop signals reach Python.
+*   **Both published ports listen on 127.0.0.1 only**: the API, because the identity stub must
+    never face a network, and the database, which is published only for the tests on the host.
+*   **One log format.** The web server's own log lines now go through the app's JSON handler, so
+    every line of the stack has the same shape; its colour-coded duplicate field is dropped, and
+    the worker logs under its module name even when started as `python -m app.worker`.
+*   **The worker's container health** uses `python -m app.worker --healthcheck` (step 8).
+*   **Not observable in the stack:** "a batch in flight is finished on stop" needs a slow send,
+    and the log notifier answers instantly. That behaviour is covered by the worker tests (a stop
+    while a send is blocked finishes and saves that batch and takes no new one).
+*   **CI** runs the same gates as `make check` against a PostgreSQL service: lint, format, types,
+    migrations up/down/up and the tests with the 90% coverage gate.

@@ -1,3 +1,13 @@
+# The demo stack: database, migrations, demo data, API and worker.
+# `docker compose up -d --build` starts everything; the API is on http://127.0.0.1:8000.
+
+x-app: &app
+  build: .
+  image: fielddata-weather-alerts:local
+  environment: &app-env
+    DATABASE_URL: postgresql+asyncpg://agrobot:agrobot@db:5432/agrobot
+    LOG_FORMAT: json
+
 services:
   db:
     image: postgres:17
@@ -6,7 +16,7 @@ services:
       POSTGRES_PASSWORD: agrobot
       POSTGRES_DB: agrobot
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # for the tests on the host
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb-test.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
@@ -16,6 +26,59 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:  # demo only: stands in for the data Agrobot already has
+    <<: *app
+    command: ["python", "-m", "app.seed"]
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    ports:
+      - "127.0.0.1:8000:8000"  # the X-User-Id stub must never face a network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *app-env
+      EVALUATION_INTERVAL_SECONDS: 30  # demo: a new alert is evaluated within 30 seconds
+    restart: unless-stopped
+    stop_grace_period: 30s  # above the worst-case batch (one 10-second send timeout)
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker", "--healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      seed:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

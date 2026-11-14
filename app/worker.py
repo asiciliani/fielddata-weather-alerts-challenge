@@ -32,7 +32,7 @@ from app.notifiers import LogNotifier, Notifier
 from app.services.dispatch import DispatchResult, DispatchSettings, dispatch_batch
 from app.services.evaluation import check_data, evaluate_alerts, try_evaluation_lock
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.worker")  # also when run as __main__
 
 EVALUATION_STATEMENT_TIMEOUT = "240s"  # below the 5-minute interval, above the 30 s default
 HEARTBEAT_STALE_INTERVALS = 3

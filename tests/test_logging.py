@@ -51,3 +51,14 @@ def test_configure_logging_replaces_only_its_own_handler() -> None:
     assert isinstance(added[0].formatter, JsonFormatter)
     assert root.level == logging.DEBUG
     root.removeHandler(added[0])
+
+
+def test_server_logs_go_through_the_app_handler() -> None:
+    access = logging.getLogger("uvicorn.access")
+    access.addHandler(logging.NullHandler())
+    access.propagate = False
+    configure_logging(Settings(_env_file=None))
+    assert access.handlers == [] and access.propagate is True
+    root = logging.getLogger()
+    for h in [h for h in root.handlers if isinstance(h.formatter, JsonFormatter)]:
+        root.removeHandler(h)

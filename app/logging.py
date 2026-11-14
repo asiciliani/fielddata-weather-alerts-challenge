@@ -17,6 +17,7 @@ _RECORD_ATTRS = frozenset(vars(logging.LogRecord("", 0, "", 0, "", None, None)))
     "message",
     "asctime",
     "taskName",
+    "color_message",  # Uvicorn's ANSI-coloured copy of the message
 }
 
 
@@ -69,3 +70,9 @@ def configure_logging(settings: Settings) -> None:
     handler.setFormatter(JsonFormatter() if settings.log_format == "json" else ConsoleFormatter())
     root.addHandler(handler)
     root.setLevel(settings.log_level)
+    # Uvicorn installs its own handlers; route its records through ours so every line has one
+    # format.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        server_logger = logging.getLogger(name)
+        server_logger.handlers.clear()
+        server_logger.propagate = True
