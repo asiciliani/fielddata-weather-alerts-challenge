@@ -632,3 +632,10 @@ design says; the choices below are details it left open.
 *   **Concurrency tests** hold a batch open inside a stalled notifier and check that evaluation
     still finishes, that a second dispatcher takes other alerts, and that no notification is sent
     twice.
+
+### Step 7: notifications API
+
+**TL;DR:** `GET /notifications` lists the caller's notifications, newest first, with the status,
+field and alert filters and pagination. Scoped through the alert's owner, so another member of
+the same field never sees them. The alert is loaded by the same join that applies the owner filter
+(one query), instead of a second join only for loading.
