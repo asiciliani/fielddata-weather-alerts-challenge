@@ -75,6 +75,12 @@ Eso levanta la base, corre las migraciones (`migrate`), carga los datos de demo 
 arranca la API y el worker. La API queda en `http://127.0.0.1:8000` (documentación interactiva en
 `/docs`). En la demo el worker evalúa cada 30 segundos en vez de 5 minutos.
 
+Hay además una **página de demo** en <http://127.0.0.1:8000/demo> (extra): un mapa de los campos
+sobre las zonas del pronóstico con una barra de fechas, un chat simulado con las notificaciones
+reales del usuario y tablas por campo. La página no tiene lógica propia: qué alerta se dispara en
+qué fecha lo calcula el servidor con la misma regla que la evaluación. El botón "Simular canal
+caído" es solo una animación en el navegador.
+
 El seed imprime los usuarios, campos y alertas que creó:
 
 ```bash
@@ -171,6 +177,7 @@ Todas las rutas, salvo health, van bajo `/api/v1`.
 | `PATCH /alerts/{id}` | cambia `threshold` y/o `is_active` (campo y tipo son fijos) |
 | `DELETE /alerts/{id}` | borra la alerta y sus notificaciones |
 | `GET /notifications` | notificaciones del usuario, más nuevas primero (filtros `status`, `field_id`, `alert_id`) |
+| `GET /fields/{id}/outlook` | para la página de demo: zonas del campo, pronósticos de la ventana y, por alerta del usuario, en qué fechas se dispara |
 
 Errores con forma `{"detail": …}`: 401 sin identidad válida; 404 para recursos de otro usuario
 (aunque sea miembro del mismo campo, así no se revela si existen); 409 alerta duplicada; 422
@@ -454,7 +461,8 @@ app/
   schemas.py            modelos de request y response
   errors.py             errores de dominio y su mapeo a HTTP
   api/deps.py           sesión, usuario actual, paginación
-  api/routes/           health, fields, event_types, alerts, notifications
+  api/routes/           health, fields, event_types, alerts, notifications, demo
+  static/demo/          la página de demo y los contornos ilustrativos de los campos
   services/alerts.py    CRUD de alertas con pertenencia
   services/evaluation.py  la regla de disparo y la sentencia de evaluación
   services/dispatch.py  un lote de entrega, backoff y texto del mensaje

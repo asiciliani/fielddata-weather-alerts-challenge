@@ -83,3 +83,46 @@ class NotificationRead(BaseModel):
     status: NotificationStatus
     sent_at: datetime | None
     created_at: datetime
+
+
+class OutlookZone(BaseModel):
+    id: int
+    latitude: Decimal
+    longitude: Decimal
+    coverage: Decimal
+
+
+class OutlookForecast(BaseModel):
+    event_type: str
+    zone_id: int
+    forecast_date: date
+    probability: int
+
+
+class OutlookDate(BaseModel):
+    """A date on which some zone of the field reaches the alert's threshold."""
+
+    forecast_date: date
+    affected_area: Decimal
+    probability: int
+    fires: bool = Field(description="the affected area reaches the minimum: the alert fires")
+
+
+class OutlookAlert(BaseModel):
+    id: int
+    event_type: str
+    threshold: int
+    is_active: bool
+    dates: list[OutlookDate]
+
+
+class FieldOutlook(BaseModel):
+    id: int
+    name: str
+    role: FieldRole
+    today: date
+    end_date: date
+    min_affected_area: Decimal
+    zones: list[OutlookZone]
+    forecasts: list[OutlookForecast]
+    alerts: list[OutlookAlert]

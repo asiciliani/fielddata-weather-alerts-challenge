@@ -1,0 +1,105 @@
+{
+  "_note": "Illustration data for the demo map only: outlines of the seeded fields, as latitude/longitude pairs. Not stored in the database; the system reads only the field-to-zone coverages.",
+  "fields": {
+    "La Esperanza": {
+      "story": "Una sola zona. Dos fechas frías salen en un único mensaje (la alerta la crea el recorrido del README).",
+      "outline": [
+        [
+          -34.0725,
+          -60.435
+        ],
+        [
+          -34.0575,
+          -60.3125
+        ],
+        [
+          -34.1475,
+          -60.29
+        ],
+        [
+          -34.19,
+          -60.35
+        ],
+        [
+          -34.175,
+          -60.4225
+        ]
+      ]
+    },
+    "Los Álamos": {
+      "story": "Campo grande: 60% en una zona y 40% en la vecina. Un día hace frío solo en la zona chica.",
+      "outline": [
+        [
+          -34.2975,
+          -60.19
+        ],
+        [
+          -34.2875,
+          -59.86875
+        ],
+        [
+          -34.4525,
+          -59.86
+        ],
+        [
+          -34.4725,
+          -60.005
+        ],
+        [
+          -34.445,
+          -60.185
+        ]
+      ]
+    },
+    "El Rincón": {
+      "story": "Una franja del 5% en la zona vecina. Si llueve solo ahí, no alcanza el área mínima.",
+      "outline": [
+        [
+          -34.545,
+          -60.2225
+        ],
+        [
+          -34.535,
+          -59.98875
+        ],
+        [
+          -34.685,
+          -59.98625
+        ],
+        [
+          -34.7075,
+          -60.125
+        ],
+        [
+          -34.675,
+          -60.2175
+        ]
+      ]
+    },
+    "La Compartida": {
+      "story": "Mismo campo, dos miembros, mismo pronóstico. Cada uno con su propio umbral.",
+      "outline": [
+        [
+          -34.055,
+          -59.715
+        ],
+        [
+          -34.075,
+          -59.565
+        ],
+        [
+          -34.1875,
+          -59.555
+        ],
+        [
+          -34.2075,
+          -59.675
+        ],
+        [
+          -34.14,
+          -59.7225
+        ]
+      ]
+    }
+  }
+}

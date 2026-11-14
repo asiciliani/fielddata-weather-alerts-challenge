@@ -9,8 +9,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import alerts, event_types, fields, health, notifications
+from app.api.routes import alerts, demo, event_types, fields, health, notifications
 from app.config import Settings, get_settings
 from app.db import build_engine, build_session_factory
 from app.errors import register_error_handlers
@@ -35,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(health.router)
-    for module in (fields, event_types, alerts, notifications):
+    for module in (fields, demo, event_types, alerts, notifications):
         app.include_router(module.router, prefix="/api/v1")
+    app.include_router(demo.page_router)
+    app.mount("/demo/static", StaticFiles(directory=demo.STATIC_DIR), name="demo-static")
     return app

@@ -37,14 +37,15 @@ USERS = {
     "bruno": ("Bruno", "Díaz", "+5491100000002"),
 }
 
-# 0.25-degree cell centres in Buenos Aires province (4 decimals, as the provider reports them).
+# 0.25-degree cell centres in Buenos Aires province (4 decimals, as the provider reports them),
+# laid out as a 4 x 3 block of neighbouring cells so the demo map stays compact.
 ZONES = {
-    "Z1": ("-34.6250", "-59.3750"),
-    "Z2": ("-35.1250", "-60.1250"),
-    "Z3": ("-35.1250", "-59.8750"),
-    "Z4": ("-36.3750", "-61.6250"),
-    "Z5": ("-36.1250", "-61.6250"),
-    "Z6": ("-34.8750", "-58.8750"),
+    "Z1": ("-34.1250", "-60.3750"),
+    "Z2": ("-34.3750", "-60.1250"),
+    "Z3": ("-34.3750", "-59.8750"),
+    "Z4": ("-34.6250", "-60.1250"),
+    "Z5": ("-34.6250", "-59.8750"),
+    "Z6": ("-34.1250", "-59.6250"),
 }
 
 

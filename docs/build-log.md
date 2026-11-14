@@ -712,3 +712,29 @@ against the stack started from an empty database.
     network.
 *   **"How it was built"** says what was done with the AI agent and links this log, as the author
     chose during planning.
+
+### Step 10b: demo page
+
+**TL;DR:** `/demo` ports the agreed mock (map with a date bar, phone chat, per-field tables, line
+icons per event type) onto live data. The page has no alert rule and no message text of its own:
+everything it shows comes from the API. Checked in a browser against the stack started from an
+empty database.
+
+*   **Where "fires" comes from.** The new `GET /api/v1/fields/{id}/outlook` returns the field's
+    zones, its forecasts for the window, and, for each of the caller's alerts on the field, the
+    dates computed by the same `firing_matches` function evaluation uses. It also returns the
+    dates where some zone reaches the threshold but the area is below the minimum, marked as not
+    firing, so the page can show El Rincón's "poca área" case without computing it. A test checks
+    the outlook's firing dates are exactly the notifications evaluation creates from the seed.
+*   **The chat shows real notifications**, grouped the way they were sent (one message per alert
+    and send time). A bubble lists the dates with probability and share of the field; it does
+    not rebuild the WhatsApp text, which only the server renders. Pending and failed dates appear
+    as notes. The outage button is labelled as a browser-only illustration.
+*   **What was dropped from the mock:** the minimum-area and threshold sliders, because they
+    re-ran the alert rule in the browser. The page shows the configured minimum instead.
+*   **Seed zones moved** onto a compact 4 × 3 block of neighbouring cells (still in Buenos Aires
+    province), so the demo map matches the mock's layout. The stories and coverages are the same.
+*   **Field outlines** for the map live in `app/static/demo/field-outlines.json`, as illustration
+    data shipped with the page; the database still stores no outlines.
+*   **No external resources**: the mock's web fonts were replaced by system fonts, so the page
+    works offline.

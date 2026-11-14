@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alertas climáticas · demo</title>
+<style>
+/* Layout: a survey-sheet map of the forecast grid (fields drawn over zones, scrubbed by date) beside a phone showing the chat; per-field forecast tables below. One line-icon set marks the four event types. */
+:root {
+  --bg: #eef1ea;
+  --surface: #fbfcf8;
+  --fg: #1c241e;
+  --muted: #5b685e;
+  --line: #d3dacf;
+  --accent: #2f6b4f;
+  --fire: #d27a12;
+  --fire-soft: #fbe9cf;
+  --land: #e4e8d6;
+  --land-2: #d9dfc8;
+  --water: #b9d3dc;
+  --road: #c8c2ae;
+  --grid: #8f9a86;
+  --p0: #eef2f6; --p1: #d3e3f0; --p2: #a3c6e2; --p3: #6a9fcc; --p4: #3672ab; --p5: #1b4574;
+  --on-dark: #ffffff;
+  --chat-bg: #efe7dc;
+  --chat-dots: #e2d8c9;
+  --bubble-in: #ffffff;
+  --chat-head: #1f5c4a;
+  --tick: #4fa3d8;
+  --font-display: "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Helvetica Neue", Arial, sans-serif;
+  --font-data: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --surface: #181f1a; --fg: #e3eae4; --muted: #9aa79d; --line: #2b352e;
+    --accent: #7cc39c; --fire: #f2a34a; --fire-soft: #3b2b17;
+    --land: #1e2620; --land-2: #232c25; --water: #1f3a46; --road: #3a3a30; --grid: #5d6a5f;
+    --p0: #1c242b; --p1: #20374b; --p2: #2a5476; --p3: #3b77a8; --p4: #6aa2d2; --p5: #b8d6ef;
+    --on-dark: #0d1410; --chat-bg: #0f1a16; --chat-dots: #17251f; --bubble-in: #1f2c27; --chat-head: #1c3a31; --tick: #5db4e8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #181f1a; --fg: #e3eae4; --muted: #9aa79d; --line: #2b352e;
+  --accent: #7cc39c; --fire: #f2a34a; --fire-soft: #3b2b17;
+  --land: #1e2620; --land-2: #232c25; --water: #1f3a46; --road: #3a3a30; --grid: #5d6a5f;
+  --p0: #1c242b; --p1: #20374b; --p2: #2a5476; --p3: #3b77a8; --p4: #6aa2d2; --p5: #b8d6ef;
+  --on-dark: #0d1410; --chat-bg: #0f1a16; --chat-dots: #17251f; --bubble-in: #1f2c27; --chat-head: #1c3a31; --tick: #5db4e8;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; margin-bottom: 20px; }
+.eyebrow { font-family: var(--font-data); font-size: 0.75rem; letter-spacing: 0.06em; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; margin: 2px 0 0; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 64ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; border: 0; background: transparent; color: var(--fg); padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-dark); }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.minarea { display: flex; align-items: center; gap: 8px; }
+.minarea input { accent-color: var(--accent); }
+.minarea output { font-family: var(--font-data); min-width: 3.5ch; }
+
+.ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; flex: none; }
+.ico * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+@media (max-width: 980px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.mapcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.maphead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.maphead h2 { font-family: var(--font-display); font-size: 1.1rem; margin: 0; }
+.evt { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.evt button { font: inherit; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); padding: 4px 11px 4px 9px; border-radius: 999px; cursor: pointer; }
+.evt button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-dark); }
+.mapwrap { overflow-x: auto; }
+svg.map { display: block; width: 100%; min-width: 520px; height: auto; font-family: var(--font-data); }
+.zone-label { font-size: 11px; }
+.zone-prob { font-size: 15px; font-weight: 500; }
+.field-shape { stroke-width: 2.2; cursor: pointer; transition: fill .25s ease, stroke .25s ease; }
+.field-name { font-family: var(--font-body); font-size: 13px; font-weight: 700; fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.field-badge { font-family: var(--font-body); font-size: 11px; font-weight: 700; }
+.scrub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+.scrub button.date { font-family: var(--font-data); font-size: 0.8rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 8px; cursor: pointer; position: relative; }
+.scrub button.date[aria-pressed="true"] { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.scrub button.date .dot { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--fire); border: 2px solid var(--surface); }
+.scrub button.play { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 0.78rem; color: var(--muted); margin-top: 10px; }
+.ramp { display: inline-flex; border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.ramp span { width: 20px; height: 11px; }
+.swatch { display: inline-block; width: 14px; height: 10px; border: 2px solid var(--fire); background: var(--fire-soft); border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+
+/* Phone */
+.phone { width: 100%; max-width: 360px; margin: 0 auto; border-radius: 34px; padding: 10px; background: #15181a; box-shadow: 0 18px 40px rgba(0,0,0,.18); }
+.screen { border-radius: 26px; overflow: hidden; background: var(--chat-bg); display: flex; flex-direction: column; height: 620px; }
+.chathead { background: var(--chat-head); color: #fff; display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: #e8f1ea; color: #1f5c4a; display: grid; place-items: center; font-weight: 800; font-family: var(--font-display); }
+.chathead .name { font-weight: 700; line-height: 1.1; }
+.chathead .state { font-size: 0.75rem; opacity: .8; }
+.chatbody { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 8px;
+  background-image: radial-gradient(var(--chat-dots) 1.2px, transparent 1.2px); background-size: 18px 18px; }
+.daychip { align-self: center; background: var(--bubble-in); color: var(--muted); font-size: 0.72rem; padding: 3px 10px; border-radius: 8px; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+.bubble { align-self: flex-start; max-width: 86%; background: var(--bubble-in); color: var(--fg); border-radius: 0 10px 10px 10px; padding: 7px 10px 5px; box-shadow: 0 1px 0 rgba(0,0,0,.08); font-size: 0.92rem; position: relative; animation: pop .25s ease both; }
+.bubble::before { content: ""; position: absolute; left: -7px; top: 0; border-right: 8px solid var(--bubble-in); border-bottom: 9px solid transparent; }
+.bubble .kind { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+.bubble .time { display: block; text-align: right; font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+.bubble .ticks { color: var(--tick); margin-left: 3px; letter-spacing: -2px; }
+.sysnote { align-self: center; max-width: 92%; text-align: center; font-size: 0.75rem; color: var(--fg); background: var(--fire-soft); border-radius: 8px; padding: 5px 10px; animation: pop .25s ease both; }
+.typing { align-self: flex-start; background: var(--bubble-in); border-radius: 0 10px 10px 10px; padding: 9px 12px; display: inline-flex; gap: 4px; }
+.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite; }
+.typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25 } 40% { opacity: 1 } }
+@keyframes pop { from { transform: translateY(6px); opacity: 0 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .bubble, .sysnote { animation: none; } .typing span { animation: none; opacity: .6; } .field-shape { transition: none; } }
+.chatactions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.chatactions button { font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 10px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.chatactions button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-dark); }
+.chatactions button:disabled { opacity: .5; cursor: default; }
+.chatnote { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+
+.details { margin-top: 28px; }
+.details h2 { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 12px; }
+.plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; }
+.plot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; scroll-margin-top: 16px; }
+.plot.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.plot-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.plot h3 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; }
+.story { color: var(--muted); font-size: 0.88rem; margin: 2px 0 10px; }
+.role { font-size: 0.75rem; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--muted); }
+.chip { display: inline-flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; margin: 2px 8px 8px 0; }
+.chip input { width: 110px; accent-color: var(--accent); }
+.chip output { font-family: var(--font-data); min-width: 3.5ch; }
+.who { font-size: 0.78rem; color: var(--muted); }
+.gridwrap { overflow-x: auto; }
+table.grid { border-collapse: separate; border-spacing: 3px; font-family: var(--font-data); font-size: 0.78rem; min-width: 480px; width: 100%; }
+.grid th { font-weight: 500; color: var(--muted); text-align: center; padding: 2px 3px; }
+.grid th.rowh { text-align: left; white-space: nowrap; font-family: var(--font-body); }
+.grid td { text-align: center; padding: 5px 2px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.grid td.hit { box-shadow: inset 0 0 0 2px var(--fire); }
+.grid td.cur { outline: 2px solid var(--fg); outline-offset: -1px; }
+.grid tr.area td { color: var(--muted); }
+.grid tr.area td.fires { color: var(--fire); font-weight: 700; }
+.mark { font-family: var(--font-body); font-size: 0.7rem; padding: 1px 6px; border-radius: 999px; }
+.mark.yes { background: var(--fire-soft); color: var(--fire); font-weight: 700; }
+.mark.no { color: var(--muted); }
+.mark.sliver { color: var(--muted); text-decoration: underline dotted; }
+.banner { background: var(--fire-soft); border: 1px solid var(--fire); border-radius: 8px; padding: 8px 12px; margin: 0 0 16px; font-size: 0.9rem; }
+.banner[hidden] { display: none; }
+.bubble ul { margin: 2px 0 0; padding-left: 18px; font-family: var(--font-data); font-size: 0.85rem; }
+.bubble .what { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">AGROBOT · ALERTAS CLIMÁTICAS · DEMO SOBRE DATOS DEL SEED</div>
+      <h1>Qué campos reciben alerta, y cuándo</h1>
+      <p class="sub" id="sub">Cargando…</p>
+    </div>
+    <div class="controls">
+      <div>
+        <div class="label" id="user-label">Usuario (X-User-Id)</div>
+        <div class="seg" role="group" aria-labelledby="user-label" id="user-seg"></div>
+      </div>
+    </div>
+  </header>
+  <p class="banner" id="banner" hidden></p>
+
+  <div class="stage">
+    <section class="mapcard" aria-label="Mapa de zonas y campos">
+      <div class="maphead">
+        <h2 id="map-title">Pronóstico por zona</h2>
+        <div class="evt" role="group" aria-label="Evento" id="evt-seg"></div>
+      </div>
+      <div class="mapwrap"><svg class="map" id="map" role="img" aria-labelledby="map-title"></svg></div>
+      <div class="scrub" id="scrub" aria-label="Fecha"></div>
+      <div class="legend">
+        <span>Probabilidad</span>
+        <span class="ramp" aria-hidden="true"><span style="background:var(--p0)"></span><span style="background:var(--p1)"></span><span style="background:var(--p2)"></span><span style="background:var(--p3)"></span><span style="background:var(--p4)"></span><span style="background:var(--p5)"></span></span>
+        <span>0 → 100%; el ícono se intensifica con la probabilidad</span>
+        <span><span class="swatch"></span>campo con una alerta tuya que se dispara en la fecha elegida (lo calcula el servidor)</span>
+      </div>
+    </section>
+
+    <section aria-label="Chat simulado">
+      <div class="phone">
+        <div class="screen">
+          <div class="chathead">
+            <div class="avatar" aria-hidden="true">A</div>
+            <div><div class="name">Agrobot</div><div class="state" id="chat-state">en línea</div></div>
+          </div>
+          <div class="chatbody" id="chat" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="chatactions">
+        <button type="button" class="primary" id="btn-refresh">Actualizar</button>
+        <button type="button" id="btn-fail" aria-pressed="false">Simular canal caído</button>
+      </div>
+      <p class="chatnote">El chat muestra tus notificaciones reales (<code>GET /api/v1/notifications</code>), agrupadas como se enviaron: un mensaje por alerta. En este proyecto el mensaje se escribe en el log del worker en lugar de enviarse por WhatsApp. "Simular canal caído" es solo una animación en el navegador: no toca el servidor.</p>
+    </section>
+  </div>
+
+  <section class="details" aria-label="Detalle por campo">
+    <h2>Detalle por campo</h2>
+    <div class="plots" id="plots"></div>
+  </section>
+</div>
+
+<script>
+"use strict";
+// Everything shown here comes from the API. Whether an alert fires on a date, and with what
+// affected area, is computed by the server with the same rule as the evaluation job; this page
+// only draws it.
+const API = "/api/v1";
+const USERS = [1, 2];  // the seeded users
+const GLYPH = {
+  frost: [["path", "M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10M9 3.5l3 2 3-2M9 20.5l3-2 3 2M4 10.5l2.7-.9-.2-3M20 13.5l-2.7.9.2 3M4 13.5l2.7.9-.2 3M20 10.5l-2.7-.9.2-3"]],
+  rain: [["path", "M7 14.5a4 4 0 0 1 .4-8 5.5 5.5 0 0 1 10.4 1.8 3.4 3.4 0 0 1-.3 6.2Z"], ["path", "M8.5 17.5l-1 3M12.5 17.5l-1 3M16.5 17.5l-1 3"]],
+  heat: [["circle", 12, 12, 4.2], ["path", "M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"]],
+  strong_wind: [["path", "M3 8.5h10.5a3 3 0 1 0-3-3M3 12.5h15a3 3 0 1 1-3 3M3 16.5h7"]],
+};
+const CELL = 0.25, PX = 200;  // grid cell in degrees, and in map units
+
+let state = { user: 1, eventTypes: [], fields: [], outlooks: {}, notifications: [], outlines: {}, dates: [], dateIdx: 0, evt: "frost", focus: null };
+let playing = null, channelDown = false, timers = [];
+
+const shadeIdx = p => p < 15 ? 0 : p < 30 ? 1 : p < 50 ? 2 : p < 70 ? 3 : p < 85 ? 4 : 5;
+const ddmm = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const pct = x => `${Math.round(Number(x) * 100)}%`;
+const eventName = code => (state.eventTypes.find(e => e.code === code) || { name: code }).name;
+
+const NS = "http://www.w3.org/2000/svg";
+function s(tag, attrs = {}, text) { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; }
+function h(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v); }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+function glyphParts(type) {
+  return (GLYPH[type] || []).map(([tag, ...a]) => tag === "circle" ? s("circle", { cx: a[0], cy: a[1], r: a[2] }) : s("path", { d: a[0] }));
+}
+function icon(type) { const svg = s("svg", { viewBox: "0 0 24 24", class: "ico", "aria-hidden": "true" }); svg.append(...glyphParts(type)); return svg; }
+function mapGlyph(type, x, y, size, color, opacity = 1) {
+  const g = s("g", { transform: `translate(${x} ${y}) scale(${size / 24})`, fill: "none", stroke: color, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", opacity });
+  g.append(...glyphParts(type));
+  return g;
+}
+
+async function get(path) {
+  const r = await fetch(API + path, { headers: { "X-User-Id": String(state.user) } });
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
+async function load() {
+  try {
+    const [types, fields, notifications] = await Promise.all([get("/event-types"), get("/fields?limit=100"), get("/notifications?limit=100")]);
+    state.eventTypes = types; state.fields = fields.items; state.notifications = notifications.items;
+    const outlooks = await Promise.all(state.fields.map(f => get(`/fields/${f.id}/outlook`)));
+    state.outlooks = Object.fromEntries(outlooks.map(o => [o.id, o]));
+    const first = outlooks[0];
+    if (first) {
+      state.dates = [];
+      for (let d = new Date(first.today + "T12:00:00Z"); d <= new Date(first.end_date + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1)) state.dates.push(d.toISOString().slice(0, 10));
+      state.dateIdx = Math.min(state.dateIdx, state.dates.length - 1);
+      document.getElementById("sub").textContent = `Hoy es ${ddmm(first.today)}; se miran hoy y los ${state.dates.length - 1} días siguientes. Cada cuadro del mapa es una zona de la grilla del pronóstico (0,25°). Una alerta se dispara en una fecha cuando las zonas que llegan al umbral cubren al menos el ${pct(first.min_affected_area)} del campo.`;
+    }
+    document.getElementById("banner").hidden = true;
+  } catch (err) {
+    const b = document.getElementById("banner");
+    b.textContent = `No se pudo leer la API (${err.message}). ¿Está corriendo el stack (docker compose up) y cargado el seed?`;
+    b.hidden = false;
+  }
+  render();
+}
+
+function alertsOf(fieldId) { return (state.outlooks[fieldId] || { alerts: [] }).alerts; }
+function firedOn(fieldId, iso) {
+  for (const a of alertsOf(fieldId)) { const d = a.dates.find(x => x.forecast_date === iso && x.fires); if (d) return { alert: a, date: d }; }
+  return null;
+}
+function probability(fieldId, zoneId, code, iso) {
+  const f = (state.outlooks[fieldId] || { forecasts: [] }).forecasts.find(x => x.zone_id === zoneId && x.event_type === code && x.forecast_date === iso);
+  return f ? f.probability : null;
+}
+
+// Map geometry from the outlines' bounding box, snapped to the grid.
+function geometry() {
+  const pts = Object.values(state.outlines).flatMap(f => f.outline);
+  for (const o of Object.values(state.outlooks)) for (const z of o.zones) pts.push([Number(z.latitude), Number(z.longitude)]);
+  if (!pts.length) return null;
+  const latMax = Math.ceil(Math.max(...pts.map(p => p[0])) / CELL) * CELL, latMin = Math.floor(Math.min(...pts.map(p => p[0])) / CELL) * CELL;
+  const lonMin = Math.floor(Math.min(...pts.map(p => p[1])) / CELL) * CELL, lonMax = Math.ceil(Math.max(...pts.map(p => p[1])) / CELL) * CELL;
+  const cols = Math.round((lonMax - lonMin) / CELL), rows = Math.round((latMax - latMin) / CELL);
+  const x = lon => (lon - lonMin) / CELL * PX, y = lat => (latMax - lat) / CELL * PX;
+  return { cols, rows, lonMin, latMax, x, y };
+}
+
+function renderMap() {
+  const svg = document.getElementById("map");
+  svg.replaceChildren();
+  const g = geometry();
+  if (!g) return;
+  const W = g.cols * PX, H = g.rows * PX;
+  svg.setAttribute("viewBox", `-70 -40 ${W + 100} ${H + 90}`);
+  const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+  svg.append(s("rect", { x: 0, y: 0, width: W, height: H, fill: col("--land"), rx: 6 }));
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) if ((r + c) % 2) svg.append(s("rect", { x: c * PX, y: r * PX, width: PX, height: PX, fill: col("--land-2") }));
+  const iso = state.dates[state.dateIdx];
+  const drawn = new Set();
+  for (const field of state.fields) for (const z of (state.outlooks[field.id] || { zones: [] }).zones) {
+    if (drawn.has(z.id)) continue;
+    drawn.add(z.id);
+    const cx = g.x(Number(z.longitude)), cy = g.y(Number(z.latitude)), x0 = cx - PX / 2, y0 = cy - PX / 2;
+    const p = probability(field.id, z.id, state.evt, iso);
+    const i = p == null ? 0 : shadeIdx(p);
+    const ink = i >= 4 ? col("--on-dark") : col("--fg");
+    svg.append(s("rect", { x: x0 + 3, y: y0 + 3, width: PX - 6, height: PX - 6, rx: 4, fill: col(`--p${i}`), "fill-opacity": 0.88 }));
+    svg.append(s("text", { x: x0 + 12, y: y0 + 22, class: "zone-label", fill: i >= 4 ? col("--on-dark") : col("--muted") }, `zona ${z.id}`));
+    if (p != null) {
+      svg.append(mapGlyph(state.evt, x0 + 170, y0 + 9, 20, ink, 0.25 + 0.75 * p / 100));
+      svg.append(s("text", { x: x0 + 188, y: y0 + 186, "text-anchor": "end", class: "zone-prob", fill: ink }, `${p}%`));
+    }
+  }
+  for (let c = 0; c <= g.cols; c++) svg.append(s("line", { x1: c * PX, y1: 0, x2: c * PX, y2: H, stroke: col("--grid"), "stroke-width": 1, "stroke-dasharray": "2 4" }));
+  for (let r = 0; r <= g.rows; r++) svg.append(s("line", { x1: 0, y1: r * PX, x2: W, y2: r * PX, stroke: col("--grid"), "stroke-width": 1, "stroke-dasharray": "2 4" }));
+  const deg = v => `${v.toFixed(3).replace(".", ",").replace("-", "−")}°`;
+  for (let c = 0; c < g.cols; c++) svg.append(s("text", { x: c * PX + PX / 2, y: -14, "text-anchor": "middle", class: "zone-label", fill: col("--muted") }, deg(g.lonMin + (c + 0.5) * CELL)));
+  for (let r = 0; r < g.rows; r++) svg.append(s("text", { x: -12, y: r * PX + PX / 2 + 4, "text-anchor": "end", class: "zone-label", fill: col("--muted") }, deg(g.latMax - (r + 0.5) * CELL)));
+  for (const [name, info] of Object.entries(state.outlines)) {
+    const field = state.fields.find(f => f.name === name);
+    const fired = field && iso ? firedOn(field.id, iso) : null;
+    const pts = info.outline.map(([lat, lon]) => `${g.x(lon)},${g.y(lat)}`).join(" ");
+    const poly = s("polygon", { points: pts, class: "field-shape", fill: fired ? col("--fire-soft") : field ? col("--surface") : "transparent",
+      "fill-opacity": field ? 0.82 : 0, stroke: fired ? col("--fire") : field ? col("--fg") : col("--grid"), "stroke-dasharray": field ? "" : "4 4", tabindex: field ? "0" : "-1" });
+    if (field) {
+      poly.setAttribute("role", "button");
+      poly.setAttribute("aria-label", `${name}: ver detalle`);
+      const go = () => focusField(field.id);
+      poly.addEventListener("click", go);
+      poly.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    svg.append(poly);
+    const xs = info.outline.map(p => g.x(p[1])), ys = info.outline.map(p => g.y(p[0]));
+    const cx = xs.reduce((a, b) => a + b) / xs.length, cy = ys.reduce((a, b) => a + b) / ys.length;
+    if (field) {
+      svg.append(s("text", { x: cx, y: cy, "text-anchor": "middle", class: "field-name" }, name));
+      if (fired) {
+        svg.append(mapGlyph(fired.alert.event_type, cx - 36, cy + 7, 14, col("--fire")));
+        svg.append(s("text", { x: cx - 18, y: cy + 18, class: "field-badge", fill: col("--fire") }, eventName(fired.alert.event_type)));
+      }
+    }
+  }
+}
+
+function renderUsers() {
+  document.getElementById("user-seg").replaceChildren(...USERS.map(id => {
+    const b = h("button", { type: "button", "aria-pressed": String(id === state.user), text: `Usuario ${id}` });
+    b.addEventListener("click", () => { state.user = id; state.focus = null; clearTimers(); load(); });
+    return b;
+  }));
+}
+function renderEvt() {
+  document.getElementById("evt-seg").replaceChildren(...state.eventTypes.map(e => {
+    const b = h("button", { type: "button", "aria-pressed": String(e.code === state.evt) }, icon(e.code), e.name);
+    b.addEventListener("click", () => { state.evt = e.code; render(); });
+    return b;
+  }));
+}
+function renderScrub() {
+  const fired = new Set();
+  for (const f of state.fields) for (const a of alertsOf(f.id)) for (const d of a.dates) if (d.fires) fired.add(d.forecast_date);
+  const btns = state.dates.map((iso, i) => {
+    const b = h("button", { type: "button", class: "date", "aria-pressed": String(i === state.dateIdx), "aria-label": `${ddmm(iso)}${fired.has(iso) ? ", con alertas" : ""}` }, ddmm(iso), fired.has(iso) ? h("span", { class: "dot", "aria-hidden": "true" }) : null);
+    b.addEventListener("click", () => { stop(); state.dateIdx = i; render(); });
+    return b;
+  });
+  const play = h("button", { type: "button", class: "play", text: playing ? "Pausar" : "▶ Recorrer la semana" });
+  play.addEventListener("click", () => playing ? stop() : start());
+  document.getElementById("scrub").replaceChildren(...btns, play);
+}
+function start() { playing = setInterval(() => { state.dateIdx = (state.dateIdx + 1) % state.dates.length; render(); }, 900); render(); }
+function stop() { if (playing) { clearInterval(playing); playing = null; renderScrub(); } }
+
+const ROLE = { owner: "dueño/a", agronomist: "agrónomo/a", manager: "encargado/a" };
+function renderPlots() {
+  document.getElementById("plots").replaceChildren(...state.fields.map(f => {
+    const o = state.outlooks[f.id];
+    const card = h("article", { class: "plot" + (state.focus === f.id ? " focus" : ""), id: `plot-${f.id}` });
+    card.append(h("div", { class: "plot-head" }, h("h3", { text: f.name }), h("span", { class: "role", text: ROLE[f.role] || f.role })));
+    const story = (state.outlines[f.name] || {}).story;
+    if (story) card.append(h("p", { class: "story", text: story }));
+    if (!o) return card;
+    const alerts = o.alerts;
+    if (!alerts.length) card.append(h("p", { class: "who", text: "No tenés alertas en este campo. Creá una con POST /api/v1/alerts." }));
+    for (const a of alerts) card.append(h("span", { class: "chip" }, icon(a.event_type), h("strong", { text: `Alerta de ${eventName(a.event_type)} ≥ ${a.threshold}%` }), a.is_active ? null : h("span", { class: "who", text: "inactiva" })));
+    const types = alerts.length ? [...new Set(alerts.map(a => a.event_type))] : [state.evt];
+    for (const type of types) {
+      const t = h("table", { class: "grid" });
+      t.append(h("thead", {}, h("tr", {}, h("th", { class: "rowh" }, icon(type), " ", eventName(type)), ...state.dates.map(d => h("th", { scope: "col", text: ddmm(d) })))));
+      const tb = h("tbody");
+      for (const z of o.zones) {
+        const tr = h("tr", {}, h("th", { class: "rowh", scope: "row", text: `zona ${z.id} (${pct(z.coverage)})` }));
+        state.dates.forEach((iso, i) => {
+          const p = probability(f.id, z.id, type, iso);
+          const td = h("td", { text: p == null ? "–" : String(p) });
+          const k = p == null ? 0 : shadeIdx(p);
+          td.style.background = `var(--p${k})`; td.style.color = k >= 4 ? "var(--on-dark)" : "var(--fg)";
+          if (i === state.dateIdx) td.className = "cur";
+          tr.append(td);
+        });
+        tb.append(tr);
+      }
+      for (const a of alerts.filter(x => x.event_type === type)) {
+        const byDate = Object.fromEntries(a.dates.map(d => [d.forecast_date, d]));
+        tb.append(h("tr", { class: "area" }, h("th", { class: "rowh", scope: "row", text: `Área ≥ ${a.threshold}%` }),
+          ...state.dates.map(iso => { const d = byDate[iso]; return h("td", { class: d && d.fires ? "fires" : "", text: d ? pct(d.affected_area) : "–" }); })));
+        tb.append(h("tr", {}, h("th", { class: "rowh", scope: "row", text: "¿Se dispara?" }),
+          ...state.dates.map(iso => { const d = byDate[iso]; const sl = d && !d.fires;
+            return h("td", {}, h("span", { class: "mark " + (d && d.fires ? "yes" : sl ? "sliver" : "no"), title: sl ? "Hay zonas sobre el umbral, pero cubren menos que el área mínima" : "", text: d && d.fires ? "sí" : sl ? "poca área" : "no" })); })));
+      }
+      t.append(tb);
+      card.append(h("div", { class: "gridwrap" }, t));
+    }
+    return card;
+  }));
+}
+function focusField(id) {
+  state.focus = id;
+  const a = alertsOf(id)[0];
+  if (a) state.evt = a.event_type;
+  render();
+  document.getElementById(`plot-${id}`)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+// Chat: the caller's real notifications, grouped the way they were sent (one message per alert
+// and send time). The bubble lists the data the message carried; the text itself is rendered by
+// the server when it sends.
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+function messages() {
+  const groups = new Map();
+  for (const n of state.notifications) {
+    const key = n.status === "sent" ? `sent|${n.alert_id}|${n.sent_at}` : `${n.status}|${n.alert_id}`;
+    if (!groups.has(key)) groups.set(key, { status: n.status, alert_id: n.alert_id, field_id: n.field_id, event_type: n.event_type, threshold: n.threshold, sent_at: n.sent_at, rows: [] });
+    groups.get(key).rows.push(n);
+  }
+  return [...groups.values()].sort((a, b) => (a.sent_at || "9").localeCompare(b.sent_at || "9"));
+}
+function fieldName(id) { return (state.fields.find(f => f.id === id) || { name: `campo ${id}` }).name; }
+function bubble(m) {
+  const rows = [...m.rows].sort((a, b) => a.forecast_date.localeCompare(b.forecast_date));
+  const time = new Date(m.sent_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return h("div", { class: "bubble" },
+    h("div", { class: "kind" }, icon(m.event_type), eventName(m.event_type)),
+    h("div", { class: "what", text: `${fieldName(m.field_id)} · umbral ${m.threshold}%` }),
+    h("ul", {}, ...rows.map(r => h("li", { text: `${ddmm(r.forecast_date)} · ${r.probability}% · ${pct(r.affected_area)} del campo` }))),
+    h("span", { class: "time" }, time, h("span", { class: "ticks", text: "✓✓", "aria-label": "enviado" })));
+}
+function note(text) { return h("div", { class: "sysnote", text }); }
+function renderChat() {
+  const chat = document.getElementById("chat");
+  const items = [h("div", { class: "daychip", text: "NOTIFICACIONES" })];
+  const all = messages();
+  if (!all.length) items.push(note("Todavía no hay notificaciones para este usuario. El worker evalúa cada pocos segundos en la demo."));
+  for (const m of all) {
+    if (m.status === "sent") items.push(bubble(m));
+    else if (m.status === "pending") items.push(note(`${fieldName(m.field_id)}: ${m.rows.length} ${m.rows.length === 1 ? "fecha pendiente" : "fechas pendientes"} de envío (${eventName(m.event_type)}).`));
+    else items.push(note(`${fieldName(m.field_id)}: ${m.rows.length} ${m.rows.length === 1 ? "fecha pasó" : "fechas pasaron"} sin poder entregarse (${eventName(m.event_type)}).`));
+  }
+  chat.replaceChildren(...items);
+  chat.scrollTop = chat.scrollHeight;
+}
+function simulateOutage() {
+  // Browser-only illustration of the retry policy; the server is not involved.
+  const chat = document.getElementById("chat");
+  clearTimers();
+  const add = (text, ms) => timers.push(setTimeout(() => { chat.append(note(text)); chat.scrollTop = chat.scrollHeight; }, ms));
+  document.getElementById("chat-state").textContent = "sin conexión (simulado)";
+  add("Ilustración: el envío falla. Las notificaciones siguen pendientes y el próximo intento espera hasta 1 min.", 0);
+  add("Reintento fallido. Próximo intento en hasta 2 min. La detección sigue funcionando.", 1400);
+  add("Canal restablecido: las fechas pendientes de cada alerta salen juntas, en un solo mensaje.", 2900);
+  timers.push(setTimeout(() => { document.getElementById("chat-state").textContent = "en línea"; }, 2900));
+}
+
+function render() { renderUsers(); renderEvt(); renderMap(); renderScrub(); renderPlots(); renderChat(); }
+
+document.getElementById("btn-refresh").addEventListener("click", load);
+document.getElementById("btn-fail").addEventListener("click", () => {
+  channelDown = !channelDown;
+  const b = document.getElementById("btn-fail");
+  b.setAttribute("aria-pressed", String(channelDown));
+  b.textContent = channelDown ? "Canal caído (simulado)" : "Simular canal caído";
+  if (channelDown) simulateOutage(); else { clearTimers(); renderChat(); document.getElementById("chat-state").textContent = "en línea"; }
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", renderMap);
+setInterval(() => { if (!channelDown) load(); }, 10000);
+fetch("/demo/static/field-outlines.json").then(r => r.json()).then(d => { state.outlines = d.fields; }).catch(() => {}).finally(load);
+</script>
+</body>
+</html>
