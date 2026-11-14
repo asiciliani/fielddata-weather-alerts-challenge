@@ -201,7 +201,8 @@ it.
 *   The numbers in a message are current as of the re-check just before
     sending: each date is re-checked against the current alert and forecasts.
 *   Endpoints that list the caller's fields and the event types, and pagination
-    on every list.
+    on every list that grows with use (fields, alerts, notifications; the four
+    event types come as a plain list).
 *   A single-cycle mode of the worker for external schedulers.
 *   Concurrency tests: two evaluations started at once must give one run, one
     skip and no duplicate notifications; two dispatchers started at once must
@@ -979,7 +980,8 @@ The main decisions, and how they were discussed, are recorded in the
     separate, earlier migration used only for the demo and tests (in Agrobot
     the feature's migration would be attached to Agrobot's own migrations
     instead). Both are reversible and checked up, down and up again in CI;
-    rolling back the feature drops only its own tables.
+    rolling back the feature drops only its own tables and the one foreign key
+    it added to the forecasts table (see file 18).
 
 ## Risks and Mitigations
 
@@ -1016,7 +1018,13 @@ The items in the "Next step" column are listed in
 
 All settings are environment variables with defaults, validated at startup
 (numeric values must be positive; the timezone must exist; the minimum affected
-area is a decimal greater than 0 and at most 1).
+area is a decimal greater than 0 and at most 1; `NOTIFIER_TIMEOUT_SECONDS` is
+at most 25, so a send always ends before the worker's 30-second
+idle-in-transaction timeout would roll its batch back after the message went
+out). Error messages never echo the rejected value, which can hold the
+database password. The Compose file also reads `DB_PORT` (default 5432) for the
+port PostgreSQL is published on, for machines where 5432 is taken; the Makefile
+and the tests follow it.
 
 | Setting | Default |
 |---|---|
@@ -1183,7 +1191,8 @@ on the nullable side of an outer join.
 *   `last_error` stores only the error type and code reported by the notifier
     port (truncated to 500 characters), never the provider's raw text, which
     can contain the recipient's phone number; the warning log carries the same
-    fields.
+    fields. A send that times out is stored as `timeout: send_timeout`, and
+    any other exception as `unexpected: <exception type>`.
 *   Every database connection sets `lock_timeout = 5s` and
     `statement_timeout = 30s`, so a stuck lock fails a batch instead of
     holding it. Worker connections also set
@@ -1275,7 +1284,7 @@ dependency (the function that resolves the current user).
 | `GET /health/live` | | 200 `{"status":"ok"}` | |
 | `GET /health/ready` | | 200 after `SELECT 1` | 503 if the database is unreachable |
 | `GET /fields` | `limit`, `offset` | 200 page of fields (caller is a member), each with `id`, `name` and `role` | 401 |
-| `GET /fields/{id}/outlook` | | 200 the field's zones (`id`, `latitude`, `longitude`, `coverage`), forecasts per event type, zone and date for the window, and for each of the caller's alerts on the field the dates on which it fires with their affected area and probability, computed by the shared matching query builder (used by the demo page) | 401, 404 |
+| `GET /fields/{id}/outlook` | | 200 the field (`id`, `name`, the caller's `role`), the window (`today`, `end_date`) and `min_affected_area`; its zones (`id`, `latitude`, `longitude`, `coverage`); forecasts per event type, zone and date for the window; and each of the caller's alerts on the field (`id`, `event_type`, `threshold`, `is_active`) with the dates on which some zone reaches its threshold, each with affected area, probability and `fires` (whether the area reaches the minimum, so the page can show "too little area" dates), computed by the shared matching query builder (used by the demo page) | 401, 404 |
 | `GET /event-types` | | 200 list of `{code, name}` | 401 |
 | `POST /alerts` | `{field_id, event_type, threshold, is_active?}`; `event_type` is a type code | 201 alert + `Location` header | 401; 404 field missing or caller not a member (also when the membership is removed between the check and the insert: the composite foreign key's violation maps to 404); 409 duplicate for this user; 422 invalid input or unknown event type |
 | `GET /alerts` | `field_id?`, `event_type?`, `is_active?`, `limit`, `offset` | 200 page of alerts | 401; 422 (an unknown `event_type` filter is 422, not an empty page) |
@@ -1298,7 +1307,8 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
 
 ### Worker jobs
 
-*   **Periodic runner**: runs a job, logs its duration, logs any exception as
+*   **Periodic runner**: runs a job, logs its duration (`job_finished`, at
+    DEBUG), logs any exception as
     an error with its traceback and keeps going, then waits for the rest of the
     interval or until shutdown is requested. Runs of one job never overlap.
     After each successful evaluation run (or skipped run) and after each
@@ -1319,10 +1329,13 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
     the count of zones linked to active alerts that have no forecast for some
     date in the window, or whose forecasts are older than
     `FORECAST_MAX_AGE_HOURS` (checked per zone, so a job that skips some zones
-    is noticed, not only one that stops).
+    is noticed, not only one that stops; more exactly, per zone and event type
+    that an active alert watches, so a zone missing only one watched type's
+    forecasts is reported too).
     The container command is exec form, so SIGTERM reaches Python.
 *   **Evaluation**: one transaction running the evaluation statement; logs
-    `evaluation_completed` with the number created and the duration.
+    `evaluation_completed` with `notifications_created` and `duration_ms`
+    (`created` is a reserved attribute of Python log records).
 *   **Dispatch**: one transaction per batch; repeats while a batch claims as
     many alerts as the batch size and no shutdown was requested; logs
     `dispatch_completed` with counts when anything was processed;
@@ -1333,7 +1346,8 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
     not full, and exits non-zero if either failed. `--once` takes the
     evaluation lock too: if another replica holds it, it skips the evaluation
     (logging `evaluation_skipped`), still runs dispatch, and that skip alone
-    exits 0.
+    exits 0. `--healthcheck` is the container's health check: it exits 0 when
+    `dispatch.heartbeat` is younger than three dispatch intervals, 1 otherwise.
 
 ### Message format
 
@@ -1402,9 +1416,11 @@ the `Dockerfile` and the CI workflow, is created.
 
 *   **Type / Scope**: Python module.
 *   **Proposed Changes**: domain errors (not found, alert already exists,
-    unknown event type) and the handlers that map them to 404, 409 and 422; a
-    catch-all handler that logs unexpected errors once and returns 500 without
-    internals.
+    unknown event type) and the handlers that map them to 404, 409 and 422
+    (a 401 also carries `WWW-Authenticate: X-User-Id`); a catch-all that logs
+    unexpected errors once and returns 500 without internals. The catch-all is
+    an ASGI middleware, not an exception handler: Starlette re-raises after a
+    catch-all handler, and the server would log the error a second time.
 
 #### 9. `app/main.py` (Create)
 
@@ -1470,7 +1486,9 @@ the `Dockerfile` and the CI workflow, is created.
     Two users with roles, zones and coverages that add up to 100% per field,
     the alerts of the last three fields, and forecasts for every zone, event
     type and date: fixed values for the cases above and seeded random values
-    elsewhere, kept below the watched thresholds.
+    elsewhere, kept below the watched thresholds (and below 50 for the
+    README walkthrough's zone and event type, so the walkthrough's alert
+    fires only on the fixed dates it describes).
 
 #### 18. `alembic.ini`, `alembic/env.py`, `alembic/versions/0001_agrobot_stand_ins.py`, `alembic/versions/0002_weather_alerts.py` (Create)
 
@@ -1485,7 +1503,10 @@ the `Dockerfile` and the CI workflow, is created.
     chain. In a real Agrobot deployment `0001` would not exist: `0002` would
     be re-parented onto Agrobot's own latest migration, with its foreign
     keys pointing at Agrobot's real tables, and rolling it back drops only
-    the feature's tables.
+    the feature's tables. One exception: `weather_forecasts.event_type_id`
+    references `event_types`, which does not exist until `0002`, so `0001`
+    creates the column without a foreign key and `0002` adds
+    `fk_weather_forecasts_event_type_id_event_types` (its downgrade drops it).
 
 #### 19. `tests/conftest.py`, `tests/factories.py`, `tests/test_*.py` (Create)
 
@@ -1533,7 +1554,14 @@ the `Dockerfile` and the CI workflow, is created.
     JavaScript; the chat lists `GET /notifications`. Layout and visuals
     follow the agreed mock, [demo-mock.html](demo-mock.html) (version 3, with
     sample data; its client-side rule is for the mock only). It is built
-    after the README.
+    after the README. Mock-only parts left out of the page: the threshold and
+    minimum-area sliders and the message text built in JavaScript (both would
+    re-run the rule in the browser), the "another member has their own alert"
+    note (alerts are scoped to the caller), the per-cell hit outline, the mock's
+    names and fixed dates (the page shows the seeded users and today's window)
+    and its web fonts (the page loads nothing external). The outlines file is
+    served by a static mount at `/demo/static/`. Uvicorn's own log records go
+    through the app's JSON handler, so every line has one format.
 
 ### Verification Plan
 

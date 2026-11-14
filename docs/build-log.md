@@ -30,8 +30,7 @@ stored per field, event types as a fixed list in code.
 
 The reviewer judged the scope at two to three times the expected effort. That concern stayed open.
 
-**Two hints from Agustin**, an engineer on FieldData's tech team who ran the author's third
-interview.
+**Two hints from the interview process.**
 *   **An article on Python's GIL.** It did not change the architecture, which already did all
     waiting work with async code and the heavy matching inside the database. It made the
     reasoning explicit: a concurrency model with rules and a lint gate against blocking calls.
@@ -40,7 +39,7 @@ interview.
 
 **The author's hand-drawn data model.** The author drew the entity-relationship model by hand to
 understand the problem and compare it with the plan. He first discussed it with another AI
-assistant (Gemini, in Antigravity) and brought that summary to the planning.
+assistant and brought that summary to the planning.
 
 His model brought three things the plan lacked, all adopted:
 *   users and fields are many-to-many, with a role;
@@ -90,17 +89,10 @@ He also settled four points:
 | Weather provider | None; mocked | Integrating a real one |
 | Attribution | AI co-author line on commits; this log and the README say how it was built | Saying nothing about the process |
 
-**What the agent proposed and the author had not examined.** At the end of planning, the author
-said he had mainly worked through the data model himself. These were the agent's proposals, which
-he had seen but not examined in depth:
-*   the details of the notification rule;
-*   the delivery and retry design;
-*   the API shape;
-*   the async rules;
-*   several smaller technical defaults.
-
-He went back over these in the review rounds below (sections 6 and 7), and changed the retry
-design as a result.
+**What came from the agent.** The author drew the data model himself. The first drafts of the
+notification rule, the delivery and retry design, the API shape, the async rules and several
+smaller defaults were the agent's proposals. The author then reviewed each of them in the review
+rounds below (sections 6 and 7) and changed the retry design as a result.
 
 ## 2. Plan check at the start of implementation
 
@@ -326,7 +318,7 @@ being sent.
     different thresholds.
 *   **A visual demo page.** The author asked for one. It is being designed as a mock first and
     iterated with him before it is built.
-*   **Credit.** Agustin is named for the two hints.
+*   **Credit.** The two hints are credited to the interview process, without names.
 
 ## 9. EGM Stage 7 round 2, and the multi-worker audit
 
@@ -775,3 +767,20 @@ author.
     illustrative; it no longer says every list is paginated.
 *   CI also builds the Docker image, and uses current versions of its two actions (the old ones
     ran on a deprecated Node.js).
+
+**Decided by the author after the drift report** (the check of the design doc against the code):
+*   **TLDR: the doc was updated to match the code, not the other way round.** Every difference
+    was a detail the code got right that the doc did not say, so the doc now says it: the
+    migration that also adds the forecasts' foreign key, the extra fields of the demo's outlook
+    endpoint, the worker's health-check mode, the catch-all being a middleware, the stale-forecast
+    check per zone and event type, the log field names, the 25-second send cap, `DB_PORT`, the
+    stored error formats, and the parts of the demo mock that were mock-only. Rejected: changing
+    the code to fit the doc, which would have removed working, tested behaviour (or, for the
+    demo's sliders, put the alert rule back in the browser).
+*   **Migration order.** Kept the forecasts' foreign key in the feature's migration and said so in
+    the doc. Rejected: moving event types into the Agrobot stand-in migration, which the panel
+    preferred, because the feature owns event types.
+*   **This log.** Names of people and of other tools were removed, and the passage on which
+    proposals came from the agent was reworded to say what is true now: the author reviewed them
+    all in the review rounds. Rejected: leaving it as written (it named people without asking and
+    described the state before the reviews as if it were final).
