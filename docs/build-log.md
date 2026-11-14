@@ -639,3 +639,23 @@ design says; the choices below are details it left open.
 field and alert filters and pagination. Scoped through the alert's owner, so another member of
 the same field never sees them. The alert is loaded by the same join that applies the owner filter
 (one query), instead of a second join only for loading.
+
+### Step 8: worker process
+
+**TL;DR:** `python -m app.worker` runs evaluation and dispatch on their own intervals, stops
+cleanly on SIGTERM, and has a single-cycle mode and a health check. Details the doc left open:
+
+*   **Health check command.** `python -m app.worker --healthcheck` exits 1 when the dispatch
+    heartbeat is older than three dispatch intervals (45 seconds by default). It reads no other
+    file. The plan's older text said three *evaluation* intervals; the design doc says dispatch,
+    and the doc wins.
+*   **Data checks run after the evaluation is saved**, in their own short transaction, so a
+    problem in a warning query can never undo the notifications just created.
+*   **A forced stop (second signal) exits normally** once the cancelled batch has rolled back;
+    the rows stay pending, which a test checks. `--once` returns 1 if a stop request cut it short,
+    so an external scheduler sees the run as incomplete.
+*   **Log field names.** The count of new notifications is logged as `notifications_created`:
+    `created` is a reserved name in Python's log records.
+*   **The end-to-end test** creates an alert through the API on a field with two zones, runs the
+    single-cycle path and lists the notifications as sent, with one grouped message
+    "(40% del campo)" for the partial date.
