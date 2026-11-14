@@ -549,3 +549,18 @@ go up, down and up again. One detail the doc left open was settled.
 *   **Tests use a real PostgreSQL**, with the schema created by the migrations once per run and the
     tables emptied after every test (and once at the start, in case a previous run was cut short).
     Every constraint has a test that breaks it on purpose.
+
+### Step 3: demo data (seed)
+
+**TL;DR:** `python -m app.seed` writes the four field stories, idempotently. Two small choices.
+
+*   **The walkthrough's own pair is kept calm too.** The README walkthrough creates a frost alert
+    on La Esperanza. If that zone's background frost values were fully random, the walkthrough
+    could produce more dates than the two pinned ones, and the "two dates, one message" story
+    would break. So the zone and event type the walkthrough will watch get the same ceiling as
+    the ones the seeded alerts watch (below 50).
+*   **Forecasts are written in one batch**, with the upsert the ingestion job is assumed to use
+    (it changes only the probability and its timestamp); pinned values replace the background
+    ones before writing, which has the same result as writing them afterwards.
+*   **The story check** (evaluation creates exactly the notifications the stories predict) needs
+    the evaluation service, so it is added with step 5.
