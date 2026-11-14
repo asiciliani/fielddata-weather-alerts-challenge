@@ -501,3 +501,32 @@ each one in plain terms (in Spanish, at the author's request) before he decided.
 
 This closes the EGM review of the design doc ("Feature spec only" preset: Stages 5 to 8). The doc
 is marked Approved and committed before any application code.
+
+## 14. Implementation
+
+The design was closed and committed; from here the agent builds the plan's steps in order, one
+commit per step, and records here every choice the design doc left open.
+
+### Step 1: configuration, logging, database plumbing, health checks
+
+**TL;DR:** settings, logs, database connections and the two health checks exist. Nothing in the
+design changed.
+
+*   **Configuration.** One settings object reads the environment (and a local `.env` file, for
+    convenience) and refuses bad values at startup: numbers must be positive, the timezone must
+    exist, the minimum affected area must be above 0 and at most 1, and the database address must
+    be a PostgreSQL address for the asynchronous driver and name a database. Interval and timeout
+    settings accept fractions of a second, so tests can run the worker quickly.
+*   **`.env.example` rewritten.** It still listed settings from the cut zone-resolver design and
+    the dropped attempt limit; it now matches the design doc's configuration table exactly.
+*   **Connection timeouts.** Every connection sets the 5-second lock timeout and 30-second
+    statement timeout. Worker connections add the idle-in-transaction timeout and TCP keepalives.
+    The database driver has no keepalive options of its own, so the keepalives are set as
+    PostgreSQL session settings, which have the same effect. A test reads them back.
+*   **The API is built by a factory** (`create_app`), started with `uvicorn --factory`, so tests
+    build their own app against the test database. The engine is created by the factory, not at
+    startup, because the test client does not run startup hooks.
+*   **Readiness** answers 503 for any database failure and logs one warning; it does not raise,
+    because "not ready" is an expected answer of a probe.
+*   **Logs.** Our handler is the only one replaced when logging is set up again, so the test
+    runner's log capture keeps working.
