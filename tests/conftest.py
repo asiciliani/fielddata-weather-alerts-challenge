@@ -21,7 +21,9 @@ from app.main import create_app
 from app.models import Base
 
 TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+asyncpg://agrobot:agrobot@localhost:5432/agrobot_test"
+    "TEST_DATABASE_URL",
+    f"postgresql+asyncpg://agrobot:agrobot@localhost:{os.environ.get('DB_PORT', '5432')}"
+    "/agrobot_test",
 )
 _TRUNCATED_TABLES = ", ".join(t for t in Base.metadata.tables if t != "event_types")
 

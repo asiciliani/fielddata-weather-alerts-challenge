@@ -18,7 +18,10 @@ LogFormat = Literal["json", "console"]
 class Settings(BaseSettings):
     """Every setting has a default; each one can be overridden by an environment variable."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", frozen=True)
+    # Validation errors never echo the value: DATABASE_URL carries a password.
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", frozen=True, hide_input_in_errors=True
+    )
 
     database_url: str = "postgresql+asyncpg://agrobot:agrobot@localhost:5432/agrobot"
     db_pool_size: PositiveInt = 5
@@ -33,7 +36,9 @@ class Settings(BaseSettings):
 
     dispatch_interval_seconds: PositiveFloat = 15
     dispatch_batch_size: PositiveInt = 20
-    notifier_timeout_seconds: PositiveFloat = 10
+    # Below the worker's 30 s idle-in-transaction timeout (app/db.py) with a margin: a batch's
+    # transaction is idle while it sends, and PostgreSQL would end it mid-batch.
+    notifier_timeout_seconds: Annotated[float, Field(gt=0, le=25)] = 10
     notification_backoff_base_seconds: PositiveFloat = 60
     notification_backoff_max_seconds: PositiveFloat = 1800
 

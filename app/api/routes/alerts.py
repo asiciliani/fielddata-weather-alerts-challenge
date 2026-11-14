@@ -4,7 +4,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request, Response, status
 
-from app.api.deps import CurrentUser, PaginationDep, SessionDep
+from app.api.deps import CurrentUser, PaginationDep, PathId, QueryId, SessionDep
 from app.schemas import AlertCreate, AlertRead, AlertUpdate, Page
 from app.services import alerts as service
 
@@ -34,7 +34,7 @@ async def list_alerts(
     session: SessionDep,
     user: CurrentUser,
     page: PaginationDep,
-    field_id: Annotated[int | None, Query()] = None,
+    field_id: QueryId = None,
     event_type: Annotated[str | None, Query(max_length=32)] = None,
     is_active: Annotated[bool | None, Query()] = None,
 ) -> Page[AlertRead]:
@@ -51,13 +51,13 @@ async def list_alerts(
 
 
 @router.get("/{alert_id}")
-async def get_alert(alert_id: int, session: SessionDep, user: CurrentUser) -> AlertRead:
+async def get_alert(alert_id: PathId, session: SessionDep, user: CurrentUser) -> AlertRead:
     return await service.get_alert(session, user, alert_id)
 
 
 @router.patch("/{alert_id}", responses=_BUSY)
 async def update_alert(
-    alert_id: int, body: AlertUpdate, session: SessionDep, user: CurrentUser
+    alert_id: PathId, body: AlertUpdate, session: SessionDep, user: CurrentUser
 ) -> AlertRead:
     alert = await service.update_alert(session, user, alert_id, body)
     await session.commit()
@@ -65,6 +65,6 @@ async def update_alert(
 
 
 @router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT, responses=_BUSY)
-async def delete_alert(alert_id: int, session: SessionDep, user: CurrentUser) -> None:
+async def delete_alert(alert_id: PathId, session: SessionDep, user: CurrentUser) -> None:
     await service.delete_alert(session, user, alert_id)
     await session.commit()

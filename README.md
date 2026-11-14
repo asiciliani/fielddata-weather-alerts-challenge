@@ -14,6 +14,16 @@ PostgreSQL es la única infraestructura.
 La especificación completa, en inglés, está en
 [`docs/designs/weather-alerts.md`](docs/designs/weather-alerts.md); este README la resume.
 
+## Qué leer primero
+
+Si hay poco tiempo, estos cinco archivos son el núcleo:
+[`app/models.py`](app/models.py) (el modelo de datos),
+[`alembic/versions/0002_weather_alerts.py`](alembic/versions/0002_weather_alerts.py) (la migración
+de la feature), [`app/services/evaluation.py`](app/services/evaluation.py) (la regla y la
+sentencia de evaluación), [`app/services/dispatch.py`](app/services/dispatch.py) (la entrega) y
+[`app/worker.py`](app/worker.py) (el proceso asíncrono). Son extras, no pedidos por el enunciado:
+la página `/demo`, los chequeos de datos, los heartbeats y el design doc completo.
+
 ## Contenido
 
 - [Cómo funciona, en corto](#cómo-funciona-en-corto)
@@ -63,7 +73,9 @@ El usuario lista sus notificaciones por la API para ver qué se le mandó.
 ## Cómo correrlo
 
 Requisitos: Docker con Compose. Para los tests en el host, además [uv](https://docs.astral.sh/uv/)
-(instala Python 3.13 solo).
+(instala Python 3.13 solo). La base se publica en `127.0.0.1:5432` para los tests; si ese puerto
+ya está ocupado por otro PostgreSQL, anteponé `DB_PORT=55432` a los comandos de `docker compose`
+y de `make` (por ejemplo `DB_PORT=55432 make test`).
 
 ### Levantar todo
 
@@ -118,7 +130,8 @@ curl -s -i -X POST http://127.0.0.1:8000/api/v1/alerts -H 'X-User-Id: 1' -H 'Con
 ```
 
 Dentro de unos 45 segundos (la próxima evaluación y la próxima entrega), el worker manda un solo
-mensaje con las dos fechas:
+mensaje con las dos fechas (los ids y las fechas de abajo son los de una base recién creada;
+las fechas dependen del día):
 
 ```bash
 docker compose logs worker | grep message_delivered
@@ -182,7 +195,8 @@ Todas las rutas, salvo health, van bajo `/api/v1`.
 Errores con forma `{"detail": …}`: 401 sin identidad válida; 404 para recursos de otro usuario
 (aunque sea miembro del mismo campo, así no se revela si existen); 409 alerta duplicada; 422
 entrada inválida o tipo de evento desconocido; 503 con `Retry-After: 10` si la alerta se está
-enviando en ese momento. Las listas se paginan con `limit` (1 a 100, 50 por defecto) y `offset`.
+enviando en ese momento. Las listas de campos, alertas y notificaciones se paginan con `limit`
+(1 a 100, 50 por defecto) y `offset`; la de tipos de evento (cuatro filas) no.
 
 ## Arquitectura
 
@@ -265,7 +279,8 @@ Como máximo hay una notificación por alerta y fecha. Una fecha **enviada** no 
 notificar, aunque la probabilidad baje y vuelva a subir. Una pendiente que deja de calificar antes
 de enviarse se borra, y si vuelve a calificar se detecta de nuevo.
 
-**Ejemplo.** "Los Álamos" está 60% en la zona A y 40% en la zona B; alerta de helada al 70%:
+**Ejemplo** (valores ilustrativos, distintos de los del seed). Un campo, "La Esperanza", está 60%
+en la zona A y 40% en la zona B; alerta de helada al 70%, y hoy es 13/11:
 
 | Fecha | Zona A | Zona B | Zonas ≥ 70% | Área afectada | ¿Dispara? |
 |---|---|---|---|---|---|
@@ -277,7 +292,7 @@ de enviarse se borra, y si vuelve a calificar se detecta de nuevo.
 La primera evaluación crea tres notificaciones y la siguiente entrega manda **un** mensaje:
 
 ```text
-⚠️ Alerta de helada en "Los Álamos" (umbral 70%): 15/11 85% (60% del campo), 16/11 75%, 18/11 71% (40% del campo).
+⚠️ Alerta de helada en "La Esperanza" (umbral 70%): 15/11 85% (60% del campo), 16/11 75%, 18/11 71% (40% del campo).
 ```
 
 Si al día siguiente sube la helada del 19/11, el próximo ciclo manda otro mensaje solo con el

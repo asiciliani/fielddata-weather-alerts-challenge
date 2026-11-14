@@ -738,3 +738,40 @@ empty database.
     data shipped with the page; the database still stores no outlines.
 *   **No external resources**: the mock's web fonts were replaced by system fonts, so the page
     works offline.
+
+### Step 11: reviews and fixes
+
+**TL;DR:** two fresh reviewers read the finished repository: a bug reviewer (findings labelled P0
+to P3) and a "senior engineer grading against the brief" panel. Then the design doc was checked
+against the code for drift. The bug review found no P0 or P1. Every P2 and P3 was fixed; the
+panel's implementation points were fixed. Its design points, and the drift items, went to the
+author.
+
+**Fixed after the bug review:**
+*   **Huge identifiers answered 500.** An id beyond the 64-bit range (in the identity header, a
+    path, a filter, the page offset or a request body) crashed the database driver. They are now
+    rejected first: 401 for the identity, 422 for the rest. A test sends `10^19` to every endpoint.
+*   **A send timeout above 30 seconds would repeat messages.** The batch's transaction is idle
+    while it sends, and worker connections end idle transactions after 30 seconds; a longer send
+    would roll the batch back after the message went out, every cycle. The setting is now capped
+    at 25 seconds.
+*   **A rejected database address was printed with its password.** Configuration errors no longer
+    echo the value they rejected.
+*   **One dependency was synchronous** (pagination), so the web framework ran it in a thread. It is
+    async now, and a test checks that every route and dependency is.
+*   **Logs that could repeat or go missing.** "Date passed undelivered" (ERROR) is now logged only
+    after its batch is saved, so a batch that rolls back and runs again does not report it twice.
+    Dispatch counts are logged even when a later batch fails. The evaluation heartbeat is written
+    as soon as the run is saved, before the data checks.
+*   **Tests that claimed more than they checked.** The "two evaluations at once" test now holds
+    the first run inside its transaction and checks one run and one skip; a test that only read
+    connection settings was renamed to say so.
+
+**Fixed after the panel review:**
+*   The database port published for the tests can be changed (`DB_PORT`), for machines where
+    5432 is already taken.
+*   The README starts with "what to read first" (five files) and says which parts are extras; the
+    walkthrough says its ids come from a fresh database; the worked example is marked as
+    illustrative; it no longer says every list is paginated.
+*   CI also builds the Docker image, and uses current versions of its two actions (the old ones
+    ran on a deprecated Node.js).

@@ -314,20 +314,20 @@ async def test_skips_an_alert_that_is_no_longer_due_on_a_fresh_snapshot(
 # --- expiry and re-check -----------------------------------------------------------------------
 
 
-async def test_past_date_is_failed_with_one_error(
+async def test_past_date_is_failed_and_reported_for_the_caller_to_log(
     session: AsyncSession, caplog: pytest.LogCaptureFixture
 ) -> None:
     story = await Story(session).build({})
-    await story.pending(-1, probability=85)
-    await story.pending(-2, probability=90)
+    first = await story.pending(-2, probability=90)
+    second = await story.pending(-1, probability=85)
     notifier = FakeNotifier()
     with caplog.at_level(logging.ERROR):
         result = await dispatch(session, notifier)
     assert result.expired == 2 and notifier.attempted == []
     assert {r.status for r in await rows(session)} == {NotificationStatus.FAILED}
-    errors = [r for r in caplog.records if r.message == "notification_expired"]
-    assert len(errors) == 1 and errors[0].levelno == logging.ERROR
-    assert errors[0].alert_id == story.alert.id  # type: ignore[attr-defined]
+    assert result.expired_groups == [(story.alert.id, story.user.id, [first.id, second.id])]
+    # Logged by the worker after the batch commits, never before.
+    assert not [r for r in caplog.records if r.message == "notification_expired"]
 
 
 async def test_today_can_still_be_sent(session: AsyncSession) -> None:

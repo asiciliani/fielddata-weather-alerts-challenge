@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_
 
 from app.enums import FieldRole, NotificationStatus
 
+# Identifiers are BIGINT: anything outside that range cannot exist, and asyncpg cannot send it.
+MAX_ID = 2**63 - 1
 Threshold = Annotated[StrictInt, Field(ge=1, le=100, description="probability in percent")]
 EventTypeCode = Annotated[str, Field(min_length=1, max_length=32, examples=["frost"])]
 
@@ -30,7 +32,7 @@ class EventTypeRead(BaseModel):
 
 
 class AlertCreate(BaseModel):
-    field_id: Annotated[StrictInt, Field(ge=1)]
+    field_id: Annotated[StrictInt, Field(ge=1, le=MAX_ID)]
     event_type: EventTypeCode
     threshold: Threshold
     is_active: StrictBool = True

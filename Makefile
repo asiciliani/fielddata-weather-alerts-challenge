@@ -1,4 +1,7 @@
-TEST_DATABASE_URL ?= postgresql+asyncpg://agrobot:agrobot@localhost:5432/agrobot_test
+DB_PORT ?= 5432
+export DB_PORT
+TEST_DATABASE_URL ?= postgresql+asyncpg://agrobot:agrobot@localhost:$(DB_PORT)/agrobot_test
+export TEST_DATABASE_URL
 
 .PHONY: up down logs seed evaluate test lint typecheck migration-check check
 

@@ -16,7 +16,7 @@ services:
       POSTGRES_PASSWORD: agrobot
       POSTGRES_DB: agrobot
     ports:
-      - "127.0.0.1:5432:5432"  # for the tests on the host
+      - "127.0.0.1:${DB_PORT:-5432}:5432"  # for the tests on the host; DB_PORT if 5432 is taken
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/initdb-test.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro

@@ -56,7 +56,7 @@ async def test_connections_carry_session_timeouts(test_settings: Settings) -> No
         await engine.dispose()
 
 
-async def test_worker_connections_free_locks_of_a_dead_worker(test_settings: Settings) -> None:
+async def test_worker_connections_set_idle_timeout_and_keepalives(test_settings: Settings) -> None:
     engine = build_engine(test_settings, worker=True)
     try:
         async with build_session_factory(engine)() as session:

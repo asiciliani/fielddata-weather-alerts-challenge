@@ -249,14 +249,92 @@ async def test_two_evaluations_at_once_one_runs_one_skips(
     session_factory: async_sessionmaker[AsyncSession],
     session: AsyncSession,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await alerts_with_dates(session, 3, dates=3)
+    inside, release = asyncio.Event(), asyncio.Event()
+    real = worker_module.evaluate_alerts  # type: ignore[attr-defined]
+
+    async def held(*args: Any, **kwargs: Any) -> int:
+        inside.set()
+        await release.wait()  # the first run holds the lock while the second one starts
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(worker_module, "evaluate_alerts", held)
     other = Worker(settings, session_factory, FakeNotifier())
     with caplog.at_level(logging.INFO):
-        await asyncio.gather(worker.run_evaluation(), other.run_evaluation())
+        first = asyncio.create_task(worker.run_evaluation())
+        await asyncio.wait_for(inside.wait(), 5)
+        await asyncio.wait_for(other.run_evaluation(), 5)
+        release.set()
+        await asyncio.wait_for(first, 5)
     messages = [r.message for r in caplog.records]
-    assert messages.count("evaluation_completed") + messages.count("evaluation_skipped") == 2
+    assert messages.count("evaluation_completed") == 1
+    assert messages.count("evaluation_skipped") == 1
     assert len(await statuses(session)) == 9
+
+
+async def test_heartbeat_is_written_even_if_the_data_checks_fail(
+    worker: Worker, monkeypatch: pytest.MonkeyPatch, session: AsyncSession
+) -> None:
+    await alerts_with_dates(session, 1)
+
+    async def broken(*_: Any, **__: Any) -> None:
+        raise RuntimeError("check query failed")
+
+    monkeypatch.setattr(worker_module, "check_data", broken)
+    with pytest.raises(RuntimeError):
+        await worker.run_evaluation()
+    assert heartbeat_is_fresh(worker.evaluation_heartbeat.path, 5)
+    assert await statuses(session) == [NotificationStatus.PENDING]  # the run itself was saved
+
+
+async def test_expired_dates_are_logged_once_after_the_batch_is_saved(
+    worker: Worker, session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    from tests.factories import make_notification
+
+    user = await make_user(session)
+    zone = await make_zone(session)
+    field = await make_field(session, zones=[(zone, "1")])
+    await add_member(session, user, field)
+    alert = await make_alert(session, user, field, "frost", 70)
+    await make_notification(
+        session, alert, today() - timedelta(days=1), next_attempt_at=datetime.now(UTC)
+    )
+    await session.commit()
+    with caplog.at_level(logging.INFO):
+        await worker.run_dispatch()
+        await worker.run_dispatch()
+    expired = [r for r in caplog.records if r.message == "notification_expired"]
+    assert len(expired) == 1 and expired[0].levelno == logging.ERROR
+    assert expired[0].alert_id == alert.id  # type: ignore[attr-defined]
+
+
+async def test_dispatch_counts_are_logged_when_a_later_batch_fails(
+    worker: Worker,
+    notifier: FakeNotifier,
+    session: AsyncSession,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await alerts_with_dates(session, 4)
+    await worker.run_evaluation()
+    real = worker_module.dispatch_batch  # type: ignore[attr-defined]
+    calls = 0
+
+    async def second_fails(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("database went away")
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(worker_module, "dispatch_batch", second_fails)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError):
+        await worker.run_dispatch()
+    [done] = [r for r in caplog.records if r.message == "dispatch_completed"]
+    assert done.sent == 2  # type: ignore[attr-defined]
 
 
 async def test_evaluation_retries_once_after_a_foreign_key_violation(

@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, PathId, SessionDep
 from app.db import database_now
 from app.errors import NotFound
 from app.models import Alert, EventType, FieldMember, FieldZone, WeatherForecast, Zone
@@ -35,7 +35,7 @@ async def demo_page() -> FileResponse:
 
 @router.get("/{field_id}/outlook")
 async def field_outlook(
-    field_id: int, request: Request, session: SessionDep, user: CurrentUser
+    field_id: PathId, request: Request, session: SessionDep, user: CurrentUser
 ) -> FieldOutlook:
     """The field's zones, its forecasts for the window, and per date whether each of the
     caller's alerts on it fires (used by the demo page)."""

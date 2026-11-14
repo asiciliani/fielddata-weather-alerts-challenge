@@ -4,11 +4,12 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, Query, Request
+from fastapi import Depends, Header, Path, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.errors import Unauthenticated
 from app.models import User
+from app.schemas import MAX_ID
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -32,7 +33,10 @@ async def get_current_user(
     """The caller, from the ``X-User-Id`` header. Real authentication replaces this function."""
     if x_user_id is None or not x_user_id.strip().isdecimal():
         raise Unauthenticated()
-    user = await session.get(User, int(x_user_id))
+    user_id = int(x_user_id)
+    if user_id > MAX_ID:
+        raise Unauthenticated()
+    user = await session.get(User, user_id)
     if user is None:
         raise Unauthenticated()
     return user
@@ -47,11 +51,15 @@ class Pagination:
     offset: int
 
 
-def get_pagination(
+async def get_pagination(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=MAX_ID)] = 0,
 ) -> Pagination:
     return Pagination(limit=limit, offset=offset)
 
 
 PaginationDep = Annotated[Pagination, Depends(get_pagination)]
+
+# Ids in paths and query strings: out-of-range values are rejected with 422 before any query.
+PathId = Annotated[int, Path(ge=1, le=MAX_ID)]
+QueryId = Annotated[int | None, Query(ge=1, le=MAX_ID)]

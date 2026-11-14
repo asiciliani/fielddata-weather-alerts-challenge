@@ -11,7 +11,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -49,10 +49,27 @@ class DispatchResult:
     retried: int = 0
     expired: int = 0
     discarded: int = 0
+    # (alert_id, user_id, notification_ids) per alert whose dates passed undelivered. The caller
+    # logs them after the batch commits, so a batch that rolls back and runs again does not
+    # report the same expiry twice.
+    expired_groups: list[tuple[int, int, list[int]]] = field(default_factory=list)
 
     @property
     def processed(self) -> bool:
         return any((self.sent, self.retried, self.expired, self.discarded))
+
+    def add(self, other: "DispatchResult") -> None:
+        for name in ("claimed", "sent", "retried", "expired", "discarded"):
+            setattr(self, name, getattr(self, name) + getattr(other, name))
+
+    def counts(self) -> dict[str, int]:
+        return {
+            "claimed": self.claimed,
+            "sent": self.sent,
+            "retried": self.retried,
+            "expired": self.expired,
+            "discarded": self.discarded,
+        }
 
 
 def backoff_delay(attempts: int, *, base: float, cap: float, rng: random.Random) -> float:
@@ -160,14 +177,7 @@ async def _expire(
             result.discarded += 1
     for alert_id, ids in failed.items():
         result.expired += len(ids)
-        logger.error(
-            "notification_expired",
-            extra={
-                "alert_id": alert_id,
-                "user_id": alerts[alert_id].user_id,
-                "notification_ids": ids,
-            },
-        )
+        result.expired_groups.append((alert_id, alerts[alert_id].user_id, ids))
 
 
 async def _recheck(

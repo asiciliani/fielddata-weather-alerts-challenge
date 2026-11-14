@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Query
 from sqlalchemy.orm import contains_eager
 
-from app.api.deps import CurrentUser, PaginationDep, SessionDep
+from app.api.deps import CurrentUser, PaginationDep, QueryId, SessionDep
 from app.enums import NotificationStatus
 from app.models import Alert, Notification
 from app.schemas import NotificationRead, Page
@@ -20,8 +20,8 @@ async def list_notifications(
     user: CurrentUser,
     page: PaginationDep,
     status: Annotated[NotificationStatus | None, Query()] = None,
-    field_id: Annotated[int | None, Query()] = None,
-    alert_id: Annotated[int | None, Query()] = None,
+    field_id: QueryId = None,
+    alert_id: QueryId = None,
 ) -> Page[NotificationRead]:
     """Newest first. Scoped through the alert's owner: another member's notifications on the
     same field are not listed."""

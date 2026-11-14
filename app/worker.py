@@ -131,8 +131,10 @@ class Worker:
                     "duration_ms": round((time.monotonic() - started) * 1000),
                 },
             )
-            await self._check_data()
+        # The run is saved: beat before the data checks, whose failure is reported on its own.
         await self.evaluation_heartbeat.beat()
+        if created is not None:
+            await self._check_data()
 
     async def _evaluate(self) -> int | None:
         """Returns how many notifications were created, or None when the run was skipped."""
@@ -170,23 +172,31 @@ class Worker:
         The heartbeat is written after every batch, so a long outage keeps it fresh.
         """
         total = DispatchResult()
-        while True:
-            async with self.session_factory() as session, session.begin():
-                now = await database_now(session)
-                result = await dispatch_batch(
-                    session,
-                    self.notifier,
-                    now=now,
-                    today=now.astimezone(self.settings.tz).date(),
-                    settings=self.dispatch_settings,
-                )
-            await self.dispatch_heartbeat.beat()
-            for name in ("claimed", "sent", "retried", "expired", "discarded"):
-                setattr(total, name, getattr(total, name) + getattr(result, name))
-            if result.claimed < self.dispatch_settings.batch_size or self.stop.is_set():
-                break
-        if total.processed:
-            logger.info("dispatch_completed", extra=vars(total))
+        try:
+            while True:
+                async with self.session_factory() as session, session.begin():
+                    now = await database_now(session)
+                    result = await dispatch_batch(
+                        session,
+                        self.notifier,
+                        now=now,
+                        today=now.astimezone(self.settings.tz).date(),
+                        settings=self.dispatch_settings,
+                    )
+                # Saved: report what it did, once.
+                for alert_id, user_id, ids in result.expired_groups:
+                    logger.error(
+                        "notification_expired",
+                        extra={"alert_id": alert_id, "user_id": user_id, "notification_ids": ids},
+                    )
+                await self.dispatch_heartbeat.beat()
+                total.add(result)
+                if result.claimed < self.dispatch_settings.batch_size or self.stop.is_set():
+                    break
+        finally:
+            # Also when a later batch fails, so the batches already saved are reported.
+            if total.processed:
+                logger.info("dispatch_completed", extra=total.counts())
 
     # --- process -------------------------------------------------------------------------------
 
@@ -225,7 +235,8 @@ class Worker:
 
     async def run_once(self) -> int:
         """Evaluation once (a skip is fine), then dispatch. Returns 1 if either job failed or a
-        stop request cut the run short, else 0."""
+        stop request kept a job from finishing (a cancelled evaluation, or dispatch never
+        started), else 0. A stop during dispatch drains the batch in flight and returns 0."""
         failed = False
         for name, job in (("evaluation", self.run_evaluation), ("dispatch", self.run_dispatch)):
             if self.stop.is_set():

@@ -66,3 +66,15 @@ def test_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_invalid_values_fail_validation(overrides: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         make(**overrides)
+
+
+def test_send_timeout_must_stay_below_the_idle_transaction_timeout() -> None:
+    assert make(notifier_timeout_seconds=25).notifier_timeout_seconds == 25
+    with pytest.raises(ValidationError):
+        make(notifier_timeout_seconds=30)
+
+
+def test_validation_errors_do_not_echo_the_database_password() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        make(database_url="postgresql://agrobot:s3cretpw@db:5432/agrobot")
+    assert "s3cretpw" not in str(exc_info.value)
