@@ -806,3 +806,7 @@ zone on the left, alert in the middle, notification and user on the right, field
 with the same relationship placement. Lines are straight or right-angled where they would cross,
 each cardinality sits beside its own line, and the notification's and user's attributes are
 lined up in a column. Content unchanged.
+Then, at the author's request, every relationship was named to read as a sentence left to right
+or top to bottom: FORECAST TRIGGERS NOTIFICATION (was "triggered by", the original "dispara"),
+EVENT TYPE WATCHED BY ALERT (was "watches"), ALERT GENERATES NOTIFICATION (was "belongs to"),
+ZONE COVERS FIELD (was "lies in"; it carries `coverage`). The design doc uses the new names.

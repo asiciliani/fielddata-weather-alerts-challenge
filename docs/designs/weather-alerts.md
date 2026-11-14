@@ -388,8 +388,8 @@ adds every attribute, including the attributes of relationships.
 | ALERT | `alerts` |
 | NOTIFICATION | `notifications` (`detectedThreshold` → `threshold`, `detectedProbability` → `probability`) |
 | MEMBER OF (with `role`) | `field_members` |
-| LIES IN (with `coverage`) | `field_zones` |
-| APPLIES TO, IS OF, DEFINED BY, ON, WATCHES, BELONGS TO, TRIGGERED BY | foreign keys: `weather_forecasts.zone_id`, `weather_forecasts.event_type_id`, `alerts.user_id`, `alerts.field_id`, `alerts.event_type_id`, `notifications.alert_id`, `notifications.forecast_id` |
+| COVERS (with `coverage`) | `field_zones` |
+| APPLIES TO, IS OF, DEFINED BY, ON, WATCHED BY, GENERATES, TRIGGERS | foreign keys: `weather_forecasts.zone_id`, `weather_forecasts.event_type_id`, `alerts.user_id`, `alerts.field_id`, `alerts.event_type_id`, `notifications.alert_id`, `notifications.forecast_id` |
 
 Rules the diagram cannot express:
 
@@ -406,7 +406,7 @@ Rules the diagram cannot express:
     most 100%.
 8.  The `coverage` values of one field add up to 100%.
 9.  A notification whose `status` is *sent* has `sentAt`.
-10. TRIGGERED BY is optional on the notification's side: the link is cleared
+10. TRIGGERS is optional on the notification's side: the link is cleared
     when the ingestion job purges old forecasts, while the notification keeps
     its recorded values.
 
