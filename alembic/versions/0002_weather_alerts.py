@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean, server_default=sa.true(), nullable=False),
         _timestamp("created_at"),
         _timestamp("updated_at"),
-        sa.CheckConstraint("threshold BETWEEN 1 AND 100", name="ck_alerts_threshold_range"),
+        sa.CheckConstraint("threshold BETWEEN 1 AND 100", name=op.f("ck_alerts_threshold_range")),
         # The alert's user must be a member of its field; removing the membership removes it.
         sa.ForeignKeyConstraint(
             ["user_id", "field_id"],
@@ -105,19 +105,23 @@ def upgrade() -> None:
         sa.Column("sent_at", sa.DateTime(timezone=True), nullable=True),
         _timestamp("created_at"),
         _timestamp("updated_at"),
-        sa.CheckConstraint("threshold BETWEEN 1 AND 100", name="ck_notifications_threshold_range"),
         sa.CheckConstraint(
-            "probability BETWEEN 0 AND 100", name="ck_notifications_probability_range"
+            "threshold BETWEEN 1 AND 100", name=op.f("ck_notifications_threshold_range")
         ),
         sa.CheckConstraint(
-            "affected_area > 0 AND affected_area <= 1", name="ck_notifications_affected_area_range"
-        ),
-        sa.CheckConstraint("attempts >= 0", name="ck_notifications_attempts_non_negative"),
-        sa.CheckConstraint(
-            "status <> 'sent' OR sent_at IS NOT NULL", name="ck_notifications_sent_has_timestamp"
+            "probability BETWEEN 0 AND 100", name=op.f("ck_notifications_probability_range")
         ),
         sa.CheckConstraint(
-            "status IN ('pending', 'sent', 'failed')", name="ck_notifications_status"
+            "affected_area > 0 AND affected_area <= 1",
+            name=op.f("ck_notifications_affected_area_range"),
+        ),
+        sa.CheckConstraint("attempts >= 0", name=op.f("ck_notifications_attempts_non_negative")),
+        sa.CheckConstraint(
+            "status <> 'sent' OR sent_at IS NOT NULL",
+            name=op.f("ck_notifications_sent_has_timestamp"),
+        ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'sent', 'failed')", name=op.f("ck_notifications_status")
         ),
         sa.ForeignKeyConstraint(
             ["alert_id"], ["alerts.id"], name="fk_notifications_alert_id_alerts", ondelete="CASCADE"

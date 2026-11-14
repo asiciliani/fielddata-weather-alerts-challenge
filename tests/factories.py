@@ -44,8 +44,8 @@ async def make_zone(
 ) -> Zone:
     n = next(_counter)
     zone = Zone(
-        latitude=Decimal(latitude) if latitude else Decimal("-34.125") - Decimal(n) / 4,
-        longitude=Decimal(longitude) if longitude else Decimal("-60.125"),
+        latitude=Decimal(latitude) if latitude else Decimal("-20.125") - Decimal(n % 200) / 4,
+        longitude=Decimal(longitude) if longitude else Decimal("-60.125") - Decimal(n // 200) / 4,
     )
     session.add(zone)
     await session.flush()

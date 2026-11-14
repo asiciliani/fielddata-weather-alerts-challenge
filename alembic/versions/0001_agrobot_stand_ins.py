@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.Column("field_id", sa.BigInteger, nullable=False),
         sa.Column("role", sa.String(16), nullable=False),
         sa.CheckConstraint(
-            "role IN ('owner', 'agronomist', 'manager')", name="ck_field_members_role"
+            "role IN ('owner', 'agronomist', 'manager')", name=op.f("ck_field_members_role")
         ),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name="fk_field_members_user_id_users", ondelete="CASCADE"
@@ -81,8 +81,8 @@ def upgrade() -> None:
         sa.Column("latitude", sa.Numeric(7, 4), nullable=False),
         sa.Column("longitude", sa.Numeric(7, 4), nullable=False),
         _created_at(),
-        sa.CheckConstraint("latitude BETWEEN -90 AND 90", name="ck_zones_latitude_range"),
-        sa.CheckConstraint("longitude BETWEEN -180 AND 180", name="ck_zones_longitude_range"),
+        sa.CheckConstraint("latitude BETWEEN -90 AND 90", name=op.f("ck_zones_latitude_range")),
+        sa.CheckConstraint("longitude BETWEEN -180 AND 180", name=op.f("ck_zones_longitude_range")),
         sa.PrimaryKeyConstraint("id", name="pk_zones"),
         sa.UniqueConstraint("latitude", "longitude", name="uq_zones_latitude_longitude"),
     )
@@ -91,7 +91,9 @@ def upgrade() -> None:
         sa.Column("field_id", sa.BigInteger, nullable=False),
         sa.Column("zone_id", sa.BigInteger, nullable=False),
         sa.Column("coverage", sa.Numeric(5, 4), nullable=False),
-        sa.CheckConstraint("coverage > 0 AND coverage <= 1", name="ck_field_zones_coverage_range"),
+        sa.CheckConstraint(
+            "coverage > 0 AND coverage <= 1", name=op.f("ck_field_zones_coverage_range")
+        ),
         sa.ForeignKeyConstraint(
             ["field_id"], ["fields.id"], name="fk_field_zones_field_id_fields", ondelete="CASCADE"
         ),
@@ -112,7 +114,7 @@ def upgrade() -> None:
         _created_at(),
         _updated_at(),
         sa.CheckConstraint(
-            "probability BETWEEN 0 AND 100", name="ck_weather_forecasts_probability_range"
+            "probability BETWEEN 0 AND 100", name=op.f("ck_weather_forecasts_probability_range")
         ),
         sa.ForeignKeyConstraint(
             ["zone_id"], ["zones.id"], name="fk_weather_forecasts_zone_id_zones", ondelete="CASCADE"
