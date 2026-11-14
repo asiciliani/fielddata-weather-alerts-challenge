@@ -78,3 +78,9 @@ def test_validation_errors_do_not_echo_the_database_password() -> None:
     with pytest.raises(ValidationError) as exc_info:
         make(database_url="postgresql://agrobot:s3cretpw@db:5432/agrobot")
     assert "s3cretpw" not in str(exc_info.value)
+
+
+def test_validation_errors_do_not_echo_the_timezone() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        make(forecast_timezone="Mars/Olympus_Mons")
+    assert "Olympus" not in str(exc_info.value)

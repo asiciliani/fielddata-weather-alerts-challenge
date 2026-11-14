@@ -66,7 +66,7 @@ class Settings(BaseSettings):
         try:
             ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as exc:
-            raise ValueError(f"unknown timezone: {value!r}") from exc
+            raise ValueError("unknown timezone") from exc
         return value
 
     @property

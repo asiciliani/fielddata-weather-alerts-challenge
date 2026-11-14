@@ -784,3 +784,17 @@ author.
     proposals came from the agent was reworded to say what is true now: the author reviewed them
     all in the review rounds. Rejected: leaving it as written (it named people without asking and
     described the state before the reviews as if it were final).
+
+**Final drift check** (a second fresh reviewer, after the fixes and the doc update, without the
+first report):
+*   **TLDR: two small code bugs fixed, the rest written into the doc; the diagrams matched.**
+*   **Code fixed.** A wrong timezone was echoed in the configuration error, against the doc's
+    promise that errors never echo the rejected value (now covered by a test). The demo chat
+    showed "100% del campo", while the message format shows the share only below 100%.
+*   **Doc updated** with details the code already had: id limits (422) and strict inputs, list
+    order, `sent_at` being the batch start, inactive alerts in the outlook, eight more log events,
+    the data-check log fields, `--once` exiting 1 when stopped, the seed's options and extra pinned
+    dates, the shared-field story using heat (as the seed does), the demo's 30-second evaluation,
+    CI's image build, and how the demo page differs from the mock (the mock was a visual guide).
+    Rejected: rebuilding the mock's delivery animation and map decorations, which add JavaScript
+    and no grading value.

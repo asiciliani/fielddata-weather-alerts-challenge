@@ -305,8 +305,9 @@ None.
 ### CUJ 5: Two members of the same field
 
 *   **Given**: two users who are both members of one field.
-*   **When**: each creates a frost alert on it, with thresholds 60% and 80%,
-    and the forecast for a date is 70%.
+*   **When**: each creates an alert of the same event type on it (the seed
+    uses heat), with thresholds 60% and 80%, and the forecast for a date is
+    70%.
 *   **Then**: only the first user is notified for that date. Neither user can
     read, change or delete the other's alert, and each sees only their own
     notifications.
@@ -996,7 +997,7 @@ Figures are orders of magnitude, to show where each limit starts to matter.
 | The ingestion job does not write as Assumption 2 says | It refreshes by delete and insert, changes key columns, or holds long transactions | Locks and timeouts make evaluation fail loudly (`job_failed`) instead of waiting | Confirm the write pattern with the Agrobot team; a test against its upsert |
 | A long outage keeps the sender busy for minutes | A backlog of hundreds of alerts while the channel times out | The dispatch heartbeat is written after every batch, so a busy sender stays healthy | A circuit breaker for channel-wide outages |
 | A message reaches a user twice | After a crash, a failed final save, or a send that timed out after delivery | At most one batch; a normal stop drains | A provider idempotency key in a real client, with the message's dates frozen after an ambiguous failure so a retry is recognisable |
-| Database connections | Each process opens up to pool size + overflow (15 by default); 3 API + 3 worker processes would use 90 of PostgreSQL's default 100, before ingestion and Agrobot. A request waiting for a lock (a PATCH or DELETE on an alert being sent or evaluated) holds a pooled connection for up to 5 seconds | Pool size is configurable; the demo runs 1 + 1; `lock_timeout` bounds a wait to 5 seconds | A connection pooler (PgBouncer), or smaller pools, before adding replicas |
+| Database connections | Each process opens up to pool size + overflow (15 by default); 3 API + 3 worker processes would use 90 of PostgreSQL's default 100, before ingestion and Agrobot. A request waiting for a lock (a PATCH or DELETE on an alert being sent or evaluated) holds a pooled connection for up to 5 seconds | Pool size is configurable; the demo runs 1 + 1 (and evaluates every 30 seconds instead of 5 minutes, so the walkthrough does not wait); `lock_timeout` bounds a wait to 5 seconds | A connection pooler (PgBouncer), or smaller pools, before adding replicas |
 | WhatsApp rules for business messages | A message sent more than 24 hours after the user last wrote must use a template approved in advance; providers also limit sending rates | The message has a fixed shape (event, field, threshold, list of dates) that fits a parameterised template | Register the template; respect the provider's rate limits in the real client |
 | Tables grow without limit | Notifications grow by about one row per alert per qualifying date; forecasts by zones × 4 types per day; the first workload to slow down is the purge of old forecasts, which clears the link on notifications | Indexes serve the hot queries, including `notifications(forecast_id)` for the purge | Retention and partitioning (Non-Goals) |
 | The forecast purge and dispatch wait on each other | The purge clears the forecast link on a past-date notification that a dispatcher holds, or the dispatcher's claim waits on a purge in progress | Both waits last at most one send timeout (10 seconds) or one short purge transaction; lock timeouts fail either side instead of hanging | Purge only forecasts older than the window and not linked to pending notifications |
@@ -1294,7 +1295,13 @@ dependency (the function that resolves the current user).
 | `GET /notifications` | `status?`, `field_id?`, `alert_id?`, `limit`, `offset` | 200 page of notifications, newest first (`id DESC`) | 401, 422 |
 
 A page is `{items, limit, offset}` with `limit` 1..100 (default 50) and
-`offset` ≥ 0. A 503 means the alert is locked: a dispatcher is sending it, or,
+`offset` ≥ 0. Identifiers are BIGINT: an id in the path, a query filter, the
+body or the page offset outside 1..2^63−1 is a 422 (a path id is checked
+before ownership, so `0` is a 422, not a 404), and an identity header outside
+that range is a 401. Numbers and booleans in bodies are strict (`"70"` or
+`70.0` is a 422); an event type code is 1 to 32 characters; a POST body's
+unknown keys are ignored. Fields and alerts are listed by `id` ascending, event
+types by their `id`. A 503 means the alert is locked: a dispatcher is sending it, or,
 for a DELETE, a running evaluation is inserting notifications for it (see
 [Evaluation and delivery (details)](#evaluation-and-delivery-details)); a
 retry succeeds once that work is saved. An alert is returned as `id`,
@@ -1303,7 +1310,12 @@ retry succeeds once that work is saved. An alert is returned as `id`,
 accepted but cannot fire until it does), `created_at`, `updated_at`. A
 notification is returned as `id`, `alert_id`, `forecast_id` (null once the
 forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
-`probability`, `affected_area`, `status`, `sent_at`, `created_at`.
+`probability`, `affected_area`, `status`, `sent_at`, `created_at`. `sent_at`
+is the database time at the start of the batch that sent the message, so it
+can be up to one send timeout earlier than the send itself. In the outlook an
+inactive alert has no dates (it cannot fire), and "too little area" dates are
+listed by matching with a near-zero minimum area and flagging `fires` against
+the configured one.
 
 ### Worker jobs
 
@@ -1323,7 +1335,8 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
     unhealthy). Evaluation failures do not restart the sender: they alert
     through the `job_failed` log, and a stale `evaluation.heartbeat` is an
     alerting signal.
-*   **Data checks** (each evaluation run): a WARNING `alerts_without_zones`
+*   **Data checks** (each evaluation run that was not skipped, in their own
+    transaction after the evaluation is saved and the heartbeat written): a WARNING `alerts_without_zones`
     with the count of active alerts whose field has no zones, and of fields
     whose coverages do not add up to 100%; a WARNING `forecasts_stale` with
     the count of zones linked to active alerts that have no forecast for some
@@ -1331,7 +1344,9 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
     `FORECAST_MAX_AGE_HOURS` (checked per zone, so a job that skips some zones
     is noticed, not only one that stops; more exactly, per zone and event type
     that an active alert watches, so a zone missing only one watched type's
-    forecasts is reported too).
+    forecasts is reported too). The log fields are `alerts_without_zones` and
+    `fields_with_partial_coverage`, and `stale_zones` with the first 20
+    `zone_ids`.
     The container command is exec form, so SIGTERM reaches Python.
 *   **Evaluation**: one transaction running the evaluation statement; logs
     `evaluation_completed` with `notifications_created` and `duration_ms`
@@ -1348,6 +1363,13 @@ forecast is purged), `field_id`, `event_type`, `forecast_date`, `threshold`,
     (logging `evaluation_skipped`), still runs dispatch, and that skip alone
     exits 0. `--healthcheck` is the container's health check: it exits 0 when
     `dispatch.heartbeat` is younger than three dispatch intervals, 1 otherwise.
+    A stop signal that cancels `--once` before it finishes also exits 1.
+*   **Other log events**: `worker_started`, `worker_stopped`,
+    `shutdown_requested` (INFO) and `shutdown_forced` (WARNING, second
+    signal); `evaluation_retried` (INFO, the foreign-key retry);
+    `stale_notifications_discarded` (INFO, with `count`); `message_delivered`
+    (INFO, from the log notifier, never the phone number); in the API,
+    `readiness_check_failed` (WARNING) and `unhandled_error` (ERROR).
 
 ### Message format
 
@@ -1481,14 +1503,16 @@ the `Dockerfile` and the CI workflow, is created.
     already has, one field per case: "La Esperanza" (one zone; two cold dates
     give one message), "Los Álamos" (60% / 40% across two zones; fires with
     "40% del campo" when only one zone is cold), "El Rincón" (95% / 5%; rain in
-    the 5% sliver does not fire), "La Compartida" (shared by two users with
+    the 5% sliver does not fire; both also pin a date where both zones are
+    cold, the whole field), "La Compartida" (shared by two users with
     thresholds of 60% and 80% on a 70% forecast; only the first is notified).
     Two users with roles, zones and coverages that add up to 100% per field,
     the alerts of the last three fields, and forecasts for every zone, event
     type and date: fixed values for the cases above and seeded random values
     elsewhere, kept below the watched thresholds (and below 50 for the
     README walkthrough's zone and event type, so the walkthrough's alert
-    fires only on the fixed dates it describes).
+    fires only on the fixed dates it describes). Options `--days` (default 14, more
+    than the 8-day window) and `--seed` (default 42).
 
 #### 18. `alembic.ini`, `alembic/env.py`, `alembic/versions/0001_agrobot_stand_ins.py`, `alembic/versions/0002_weather_alerts.py` (Create)
 
@@ -1532,7 +1556,8 @@ the `Dockerfile` and the CI workflow, is created.
 
 *   **Type / Scope**: developer tooling and CI.
 *   **Proposed Changes**: lint, format check, type check, migration up/down/up,
-    and tests with the coverage gate, locally and in CI.
+    and tests with the coverage gate, locally and in CI; CI also builds the
+    Docker image.
 
 #### 22. `README.md` (Create)
 
@@ -1560,7 +1585,16 @@ the `Dockerfile` and the CI workflow, is created.
     note (alerts are scoped to the caller), the per-cell hit outline, the mock's
     names and fixed dates (the page shows the seeded users and today's window)
     and its web fonts (the page loads nothing external). The outlines file is
-    served by a static mount at `/demo/static/`. Uvicorn's own log records go
+    served by a static mount at `/demo/static/`. The page assumes the seeded
+    users are ids 1 and 2 (true on a fresh database, as in the walkthrough)
+    and polls the API every 10 seconds. Beyond those cuts, the mock was a
+    visual guide, not a contract: the page draws no river or roads, colours
+    only the caller's zones, replaces "Recibir alertas" and the typing effect
+    with "Actualizar" and polling, plays the outage as a short labelled
+    illustration, shows one table per event type with an area row and a
+    "fires?" row per alert, marks inactive alerts, labels zones by id, uses
+    gender-neutral role labels, and lists dates in the chat as
+    `dd/mm · P% · A% del campo` (the share only below 100%). Uvicorn's own log records go
     through the app's JSON handler, so every line has one format.
 
 ### Verification Plan

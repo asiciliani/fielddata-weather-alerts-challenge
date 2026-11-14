@@ -460,7 +460,7 @@ function bubble(m) {
   return h("div", { class: "bubble" },
     h("div", { class: "kind" }, icon(m.event_type), eventName(m.event_type)),
     h("div", { class: "what", text: `${fieldName(m.field_id)} · umbral ${m.threshold}%` }),
-    h("ul", {}, ...rows.map(r => h("li", { text: `${ddmm(r.forecast_date)} · ${r.probability}% · ${pct(r.affected_area)} del campo` }))),
+    h("ul", {}, ...rows.map(r => h("li", { text: `${ddmm(r.forecast_date)} · ${r.probability}%` + (Math.round(Number(r.affected_area) * 100) < 100 ? ` · ${pct(r.affected_area)} del campo` : "") }))),
     h("span", { class: "time" }, time, h("span", { class: "ticks", text: "✓✓", "aria-label": "enviado" })));
 }
 function note(text) { return h("div", { class: "sysnote", text }); }
@@ -468,7 +468,7 @@ function renderChat() {
   const chat = document.getElementById("chat");
   const items = [h("div", { class: "daychip", text: "NOTIFICACIONES" })];
   const all = messages();
-  if (!all.length) items.push(note("Todavía no hay notificaciones para este usuario. El worker evalúa cada pocos segundos en la demo."));
+  if (!all.length) items.push(note("Todavía no hay notificaciones para este usuario. El worker evalúa cada 30 segundos en la demo."));
   for (const m of all) {
     if (m.status === "sent") items.push(bubble(m));
     else if (m.status === "pending") items.push(note(`${fieldName(m.field_id)}: ${m.rows.length} ${m.rows.length === 1 ? "fecha pendiente" : "fechas pendientes"} de envío (${eventName(m.event_type)}).`));
