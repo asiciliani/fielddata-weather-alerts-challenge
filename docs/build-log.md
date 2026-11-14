@@ -530,3 +530,22 @@ design changed.
     because "not ready" is an expected answer of a probe.
 *   **Logs.** Our handler is the only one replaced when logging is set up again, so the test
     runner's log capture keeps working.
+
+### Step 2: models and migrations
+
+**TL;DR:** the nine tables exist, with every constraint the design lists, in two migrations that
+go up, down and up again. One detail the doc left open was settled.
+
+*   **A dependency between the two migrations.** The forecasts table (an Agrobot stand-in, first
+    migration) points to the event types table (this feature's, second migration). A table cannot
+    point to one that does not exist yet, so the first migration creates the forecasts' event type
+    column without the link, and the second migration adds the link after creating the event
+    types. Rolling the feature back removes that link and the feature's three tables, and nothing
+    else. Rejected: moving event types into the first migration (the doc says the feature owns
+    them) and moving forecasts into the second (the doc says they are Agrobot's).
+*   **Checked against the models.** `alembic check` confirms the hand-written migrations match the
+    models exactly; a test checks that rolling back the feature leaves only Agrobot's six tables,
+    on a throwaway database so it never touches the test data.
+*   **Tests use a real PostgreSQL**, with the schema created by the migrations once per run and the
+    tables emptied after every test (and once at the start, in case a previous run was cut short).
+    Every constraint has a test that breaks it on purpose.
