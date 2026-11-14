@@ -798,3 +798,11 @@ first report):
     CI's image build, and how the demo page differs from the mock (the mock was a visual guide).
     Rejected: rebuilding the mock's delivery animation and map decorations, which add JavaScript
     and no grading value.
+
+**Diagrams redrawn on the author's layout.** The first SVG diagrams had the right entities and
+cardinalities but a layout of their own, with labels that were hard to attribute. The author asked
+for his hand-drawn layout back, in English and cleaned up: event type at the top, forecast and
+zone on the left, alert in the middle, notification and user on the right, field at the bottom,
+with the same relationship placement. Lines are straight or right-angled where they would cross,
+each cardinality sits beside its own line, and the notification's and user's attributes are
+lined up in a column. Content unchanged.
