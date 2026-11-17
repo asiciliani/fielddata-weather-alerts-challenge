@@ -236,7 +236,9 @@ Flujo de una alerta:
 ![Modelo conceptual: entidades y relaciones](docs/designs/er-simple.svg)
 
 El modelo conceptual completo, con atributos, está en
-[`docs/designs/er-complete.svg`](docs/designs/er-complete.svg). Las tablas:
+[`docs/designs/er-complete.svg`](docs/designs/er-complete.svg). El boceto original a mano, del que
+salen los dos diagramas, está en [`docs/designs/er-hand-drawn.jpg`](docs/designs/er-hand-drawn.jpg).
+Las tablas:
 
 | Tabla | De quién | Qué guarda |
 |---|---|---|

@@ -38,7 +38,8 @@ The reviewer judged the scope at two to three times the expected effort. That co
     code, reviewed by fresh agents, and checked against the code before delivery.
 
 **The author's hand-drawn data model.** The author drew the entity-relationship model by hand to
-understand the problem and compare it with the plan. He first discussed it with another AI
+understand the problem and compare it with the plan (photo:
+[`designs/er-hand-drawn.jpg`](designs/er-hand-drawn.jpg)). He first discussed it with another AI
 assistant and brought that summary to the planning.
 
 His model brought three things the plan lacked, all adopted:
@@ -810,3 +811,8 @@ Then, at the author's request, every relationship was named to read as a sentenc
 or top to bottom: FORECAST TRIGGERS NOTIFICATION (was "triggered by", the original "dispara"),
 EVENT TYPE WATCHED BY ALERT (was "watches"), ALERT GENERATES NOTIFICATION (was "belongs to"),
 ZONE COVERS FIELD (was "lies in"; it carries `coverage`). The design doc uses the new names.
+
+**Hand-drawn sketch added.** The author's original sketch is now in the repo as
+`docs/designs/er-hand-drawn.jpg`, linked from the design doc, the README and the top of this log,
+so a reader can compare the SVG diagrams with where they came from. The photo was only
+straightened, cropped and evened out in lighting; the drawing is unchanged.

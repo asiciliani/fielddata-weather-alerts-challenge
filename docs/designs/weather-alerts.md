@@ -378,6 +378,9 @@ adds every attribute, including the attributes of relationships.
 
 ![Conceptual model, complete with attributes](er-complete.svg)
 
+Both diagrams were redrawn from the author's original hand-drawn sketch, in Spanish:
+[`er-hand-drawn.jpg`](er-hand-drawn.jpg).
+
 | Diagram | Table or column |
 |---|---|
 | USER | `users` |
